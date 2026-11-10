@@ -1,0 +1,2121 @@
+/*
+ * Bar Games venue branding: on a box, useVenue() sets --venue-* on <html> and
+ * these chrome tokens pick them up. Standalone the --venue-* variables are never
+ * set, so every fallback (the original value) applies. Ball-letter colors, daubs
+ * and win/ok/danger states are game meaning and never follow the venue. The room
+ * themes below override these tokens, so a picked theme still wins.
+ */
+:root {
+  --bg: var(--venue-bg, #101528);
+  --bg-2: var(--venue-bg, #171e38); /* page gradient: flat venue color on a box */
+  --panel: var(--venue-surface, #1d2546);
+  --panel-2: #26305a;
+  --line: #34407a;
+  --text: var(--venue-text, #eef1ff);
+  --muted: #a3acd6;
+  --accent: var(--venue-primary, #f2b33d);
+  --accent-ink: #2a1c00;
+  --danger: #ff6b6b;
+  --ok: #3ddc97;
+  --col-B: #3b82f6;
+  --col-I: #ef4444;
+  --col-N: #e5e7eb;
+  --col-G: #22c55e;
+  --col-O: #f59e0b;
+  --daub: #e0457b;
+  /* Numbers on the board that haven't been called yet. */
+  --cell-ink: #48527f;
+  --radius: var(--venue-radius, 14px);
+  color-scheme: dark;
+  font-family: var(--venue-font, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif);
+}
+
+/*
+ * Room themes (settings.theme, set on <html> as data-theme while in a
+ * room). Only the tokens change; every screen in the room follows.
+ */
+:root[data-theme="daylight"] {
+  --bg: #eef1f8;
+  --bg-2: #ffffff;
+  --panel: #ffffff;
+  --panel-2: #e7ebf5;
+  --line: #c9d0e4;
+  --text: #182037;
+  --muted: #5a6386;
+  --accent: #d97706;
+  --accent-ink: #ffffff;
+  --col-N: #94a3b8;
+  --cell-ink: #9aa3c4;
+  color-scheme: light;
+}
+:root[data-theme="hall"] {
+  --bg: #062b1d;
+  --bg-2: #0d4430;
+  --panel: #0f4a33;
+  --panel-2: #145c40;
+  --line: #1f7a55;
+  --text: #f1fff7;
+  --muted: #a6d9c0;
+  --accent: #ffd23f;
+  --accent-ink: #2a2000;
+  --cell-ink: #3e8a68;
+}
+:root[data-theme="neon"] {
+  --bg: #0a0014;
+  --bg-2: #1d0038;
+  --panel: #1c0838;
+  --panel-2: #2a0f52;
+  --line: #4b1d8a;
+  --text: #f6ecff;
+  --muted: #bba2e2;
+  --accent: #00f5d4;
+  --accent-ink: #00201b;
+  --col-B: #4cc9f0;
+  --col-I: #f72585;
+  --col-N: #ffffff;
+  --col-G: #39ff14;
+  --col-O: #ff9f1c;
+  --daub: #f72585;
+  --cell-ink: #5d3d92;
+}
+:root[data-theme="ocean"] {
+  --bg: #04202e;
+  --bg-2: #08364c;
+  --panel: #0a3d55;
+  --panel-2: #0f4f6d;
+  --line: #1b6a8f;
+  --text: #eafaff;
+  --muted: #9fd0e4;
+  --accent: #ff8c61;
+  --accent-ink: #2b0f00;
+  --cell-ink: #3a7898;
+}
+:root[data-theme="sunset"] {
+  --bg: #2b1020;
+  --bg-2: #461a36;
+  --panel: #4a1b39;
+  --panel-2: #5c2347;
+  --line: #7d3560;
+  --text: #fff1e6;
+  --muted: #e6b8c6;
+  --accent: #ffb347;
+  --accent-ink: #2b1500;
+  --cell-ink: #8a4a6c;
+}
+:root[data-theme="contrast"] {
+  --bg: #000000;
+  --bg-2: #000000;
+  --panel: #0d0d0d;
+  --panel-2: #262626;
+  --line: #ffffff;
+  --text: #ffffff;
+  --muted: #e6e6e6;
+  --accent: #ffff00;
+  --accent-ink: #000000;
+  --col-N: #ffffff;
+  --cell-ink: #9a9a9a;
+}
+
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  margin: 0;
+  background: radial-gradient(ellipse at top, var(--bg-2), var(--bg) 70%) fixed;
+  background-color: var(--bg);
+  color: var(--text);
+  min-height: 100%;
+  overflow-x: hidden;
+}
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+h1,
+h2 {
+  margin: 0 0 0.5rem;
+  line-height: 1.15;
+}
+h2 {
+  font-size: 1.15rem;
+}
+.muted {
+  color: var(--muted);
+}
+.small {
+  font-size: 0.85rem;
+}
+.center {
+  text-align: center;
+}
+.break {
+  word-break: break-all;
+}
+.grow {
+  flex: 1;
+  min-width: 0;
+}
+.error {
+  color: var(--danger);
+  text-align: center;
+}
+
+/* ---------------------------------------------------------------- controls */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 0.65rem 1.2rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  transition: transform 0.08s ease, filter 0.15s ease;
+}
+.btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.btn-primary {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.btn-secondary {
+  background: var(--panel-2);
+  border-color: var(--line);
+}
+.btn-ghost {
+  background: transparent;
+  border-color: var(--line);
+}
+.btn-small {
+  padding: 0.3rem 0.75rem;
+  font-size: 0.85rem;
+}
+.btn-big {
+  width: 100%;
+  padding: 0.9rem;
+  font-size: 1.1rem;
+}
+.btn-huge {
+  width: 100%;
+  padding: 1.1rem;
+  font-size: 1.35rem;
+}
+.icon-btn {
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  cursor: pointer;
+  font-size: 1.1rem;
+}
+input,
+select {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.65rem 0.8rem;
+  margin-top: 0.3rem;
+}
+input:focus,
+select:focus,
+.btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+label {
+  display: block;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+label.inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+label.inline select {
+  width: auto;
+  margin: 0;
+  padding: 0.4rem 0.6rem;
+}
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text);
+  font-size: 1rem;
+}
+.switch input {
+  width: 1.2rem;
+  height: 1.2rem;
+  margin: 0;
+  accent-color: var(--accent);
+}
+.code-input {
+  font-size: 1.6rem;
+  letter-spacing: 0.4em;
+  text-transform: uppercase;
+  text-align: center;
+  font-weight: 700;
+}
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.75rem;
+}
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.segmented button {
+  border: 0;
+  background: transparent;
+  padding: 0.45rem 0.9rem;
+  cursor: pointer;
+}
+.segmented button.on {
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+.segmented button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.tag {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.1rem 0.6rem;
+  font-size: 0.85rem;
+}
+
+/* ----------------------------------------------------------------- layout */
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+.center-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  text-align: center;
+}
+.home {
+  max-width: 460px;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 3rem;
+}
+.home-hero {
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+.home-hero h1 {
+  font-size: 2.4rem;
+  letter-spacing: 0.02em;
+}
+.hero-balls {
+  display: flex;
+  justify-content: center;
+  gap: 0.4rem;
+  margin-bottom: 0.8rem;
+}
+.join-panel label {
+  margin-bottom: 0.8rem;
+}
+.join-panel .btn-ghost {
+  width: 100%;
+  margin-top: 0.6rem;
+}
+
+.room {
+  min-height: 100vh;
+}
+.room-header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.6rem 1rem;
+  /* Follows the room theme (was a fixed dark navy). */
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  backdrop-filter: blur(6px);
+  border-bottom: 1px solid var(--line);
+}
+.room-id {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+.room-code {
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  color: var(--accent);
+  font-size: 1.2rem;
+}
+.header-actions {
+  display: flex;
+  gap: 0.4rem;
+}
+.banner {
+  text-align: center;
+  padding: 0.5rem 1rem;
+  background: #7c2d12;
+  font-weight: 600;
+}
+.banner-win {
+  background: linear-gradient(90deg, #b45309, var(--accent));
+  color: var(--accent-ink);
+  font-size: 1.1rem;
+}
+.banner-info {
+  background: var(--panel-2);
+}
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 6.5rem;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100vw - 2rem);
+  background: #331b2a;
+  border: 1px solid var(--danger);
+  padding: 0.7rem 1rem;
+  border-radius: 12px;
+  z-index: 50;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+}
+
+/* ------------------------------------------------------------------ balls */
+.ball {
+  --c: var(--panel-2);
+  --s: 3rem;
+  display: inline-grid;
+  place-items: center;
+  width: var(--s);
+  height: var(--s);
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 28%, rgba(255, 255, 255, 0.55), transparent 42%), var(--c);
+  box-shadow: inset 0 -4px 8px rgba(0, 0, 0, 0.35), 0 4px 10px rgba(0, 0, 0, 0.35);
+  flex: none;
+}
+.ball-face {
+  display: grid;
+  place-items: center;
+  width: 64%;
+  height: 64%;
+  border-radius: 50%;
+  background: #fff;
+  color: #111;
+  line-height: 1;
+  font-weight: 800;
+}
+.ball-letter {
+  font-size: calc(var(--s) * 0.16);
+  margin-bottom: -0.1em;
+}
+.ball-num {
+  font-size: calc(var(--s) * 0.3);
+}
+.ball-sm {
+  --s: 2.4rem;
+}
+.ball-sm .ball-letter {
+  display: none;
+}
+.ball-sm .ball-num {
+  font-size: 0.85rem;
+}
+.ball-md {
+  --s: 3rem;
+}
+.ball-lg {
+  --s: 5.5rem;
+}
+.ball-xl {
+  --s: clamp(7rem, 22vw, 11rem);
+}
+.ball-empty {
+  background: var(--panel-2);
+  opacity: 0.5;
+}
+.col-B {
+  --c: var(--col-B);
+}
+.col-I {
+  --c: var(--col-I);
+}
+.col-N {
+  --c: var(--col-N);
+}
+.col-G {
+  --c: var(--col-G);
+}
+.col-O {
+  --c: var(--col-O);
+}
+/*
+ * Draw animation: the room's ballAnimation setting sits on .room as
+ * data-anim. .ball-new is the ball just drawn (re-mounted per ball, so the
+ * animation replays); .board-cell.last is its square on the board.
+ */
+[data-anim="fade"] .ball-new {
+  animation: ball-fade 1.1s ease-out;
+}
+[data-anim="drop"] .ball-new {
+  animation: ball-drop 0.7s cubic-bezier(0.2, 1.4, 0.4, 1);
+}
+[data-anim="zoom"] .ball-new {
+  animation: ball-zoom 0.8s cubic-bezier(0.2, 1.3, 0.4, 1);
+}
+[data-anim="roll"] .ball-new {
+  animation: ball-roll 1s cubic-bezier(0.25, 1, 0.4, 1);
+}
+[data-anim="flip"] .ball-new {
+  animation: ball-flip 0.9s ease-out;
+}
+[data-anim="fade"] .board-cell.last {
+  animation: cell-fade 1.1s ease-out;
+}
+[data-anim="drop"] .board-cell.last,
+[data-anim="zoom"] .board-cell.last,
+[data-anim="roll"] .board-cell.last,
+[data-anim="flip"] .board-cell.last {
+  animation: cell-pop 0.7s ease-out;
+}
+@keyframes ball-fade {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+}
+@keyframes ball-drop {
+  from {
+    transform: translateY(-60%) scale(0.6);
+    opacity: 0;
+  }
+}
+@keyframes ball-zoom {
+  from {
+    transform: scale(0.05);
+    opacity: 0;
+  }
+}
+@keyframes ball-roll {
+  from {
+    transform: translateX(-140%) rotate(-400deg);
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+  }
+}
+@keyframes ball-flip {
+  from {
+    transform: perspective(600px) rotateY(-180deg) scale(0.7);
+    opacity: 0;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+@keyframes cell-fade {
+  from {
+    background: var(--bg);
+    color: transparent;
+  }
+}
+@keyframes cell-pop {
+  0% {
+    transform: scale(0.6);
+    opacity: 0.2;
+  }
+  60% {
+    transform: scale(1.18);
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ball-new,
+  .board-cell.last {
+    animation: none !important;
+  }
+}
+.recent {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.recent-prev {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  opacity: 0.85;
+}
+
+/* ------------------------------------------------------------------ board */
+.board {
+  display: grid;
+  gap: 0.3rem;
+}
+.board-row {
+  display: grid;
+  grid-template-columns: repeat(16, minmax(0, 1fr));
+  gap: 0.3rem;
+}
+.board-letter,
+.board-cell {
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: clamp(0.6rem, 2.2vw, 1.6rem);
+}
+.board-letter {
+  background: var(--c);
+  color: #111;
+  font-weight: 900;
+}
+.board-cell {
+  background: var(--bg);
+  color: var(--cell-ink);
+  border: 1px solid var(--line);
+}
+.board-cell.lit {
+  background: var(--c);
+  color: #111;
+  border-color: transparent;
+}
+.board-cell.last {
+  outline: 3px solid var(--text);
+  outline-offset: 1px;
+}
+.board-compact .board-letter,
+.board-compact .board-cell {
+  border-radius: 5px;
+  font-size: clamp(0.5rem, 2.3vw, 0.85rem);
+}
+.board-compact,
+.board-compact .board-row {
+  gap: 2px;
+}
+
+/* --------------------------------------------------------------- patterns */
+.pattern {
+  margin: 0;
+  text-align: center;
+}
+.pattern figcaption {
+  margin-top: 0.4rem;
+  font-weight: 700;
+}
+.mini-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 3px;
+  width: var(--w, 8rem);
+}
+.pattern-sm .mini-grid {
+  --w: 5rem;
+  gap: 2px;
+}
+.pattern-sm figcaption {
+  font-size: 0.8rem;
+  margin-top: 0.2rem;
+}
+.pattern-lg .mini-grid {
+  --w: min(14rem, 100%);
+}
+.mini-head {
+  text-align: center;
+  font-weight: 900;
+  font-size: 0.7rem;
+  color: var(--c);
+}
+.mini-cell {
+  aspect-ratio: 1;
+  border-radius: 3px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  padding: 0;
+}
+.mini-cell.on {
+  background: var(--daub);
+  border-color: transparent;
+}
+.mini-cell.free:not(.on) {
+  background: var(--panel-2);
+}
+.editor {
+  --w: 14rem;
+  gap: 5px;
+}
+.editor .mini-cell {
+  cursor: pointer;
+}
+.pattern-row {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+}
+.editor-wrap {
+  margin-top: 1rem;
+}
+
+/* ------------------------------------------------------------------ cards */
+.card {
+  background: #f8f6ef;
+  color: #1a1a2e;
+  border-radius: 12px;
+  padding: 0.4rem;
+  width: 100%;
+  max-width: 420px;
+  margin: 0 auto;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35);
+}
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 3px;
+}
+.card-head {
+  background: var(--c);
+  color: #111;
+  text-align: center;
+  font-weight: 900;
+  font-size: 1.3rem;
+  border-radius: 6px;
+  padding: 0.15rem 0;
+}
+.card-cell {
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  border: 1px solid #ddd8c6;
+  background: #fff;
+  font-size: clamp(1rem, 6vw, 1.7rem);
+  font-weight: 800;
+  padding: 0;
+  position: relative;
+  color: #1a1a2e;
+  -webkit-tap-highlight-color: transparent;
+}
+button.card-cell {
+  cursor: pointer;
+}
+.card-cell.daubed::after {
+  content: "";
+  position: absolute;
+  inset: 12%;
+  border-radius: 50%;
+  background: var(--daub);
+  opacity: 0.72;
+  mix-blend-mode: multiply;
+}
+.card-cell.free {
+  font-size: clamp(0.6rem, 3vw, 0.9rem);
+}
+.card-cell.missed {
+  box-shadow: inset 0 0 0 3px var(--accent);
+}
+.card-cell.win {
+  background: #fff3c4;
+  box-shadow: inset 0 0 0 3px #b45309;
+}
+.card-serial {
+  text-align: right;
+  font-size: 0.7rem;
+  color: #6b6b80;
+  margin-top: 0.2rem;
+  font-family: ui-monospace, monospace;
+}
+.cards {
+  display: grid;
+  gap: 1rem;
+  padding: 0 1rem;
+}
+@media (min-width: 700px) {
+  .cards-2,
+  .cards-3,
+  .cards-4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* ----------------------------------------------------------------- player */
+.player {
+  padding-bottom: 7rem;
+}
+.player-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  padding: 1rem;
+}
+.player-top .recent {
+  justify-content: flex-start;
+}
+.player-status {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.waiting {
+  font-size: 1.1rem;
+  margin: 0;
+}
+.bingo-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom));
+  background: linear-gradient(transparent, var(--bg) 35%);
+}
+.btn-bingo {
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  display: flex;
+  font-size: 1.8rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  padding: 0.9rem;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #f43f5e, #f59e0b);
+  color: #fff;
+  border: 0;
+  box-shadow: 0 8px 24px rgba(244, 63, 94, 0.4);
+  cursor: pointer;
+}
+.btn-bingo:disabled {
+  opacity: 0.5;
+}
+
+/* ------------------------------------------------------------------- host */
+.host {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+.caller {
+  text-align: center;
+}
+.caller-meta {
+  display: flex;
+  justify-content: center;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+  margin: 0.8rem 0;
+  color: var(--muted);
+}
+.countdown {
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+.claim {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent), 0 10px 30px rgba(242, 179, 61, 0.25);
+}
+.claim .card {
+  margin: 0.8rem auto;
+  max-width: 300px;
+}
+.claim .card-cell {
+  font-size: 1.1rem;
+}
+.winners ul {
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+}
+.winners li {
+  padding: 0.25rem 0;
+}
+.notices p {
+  margin: 0.2rem 0;
+}
+.setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+}
+.players {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.players li {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.dot {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  background: #6b7280;
+  flex: none;
+}
+.dot.on {
+  background: var(--ok);
+}
+.invite-row {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: 0.8rem;
+}
+.qr {
+  background: #fff;
+  border-radius: 8px;
+  flex: none;
+}
+.big-code {
+  font-size: 2.2rem;
+  font-weight: 900;
+  letter-spacing: 0.2em;
+  color: var(--accent);
+}
+
+/* --------------------------------------------------------- table (tv) */
+/*
+ * The main screen fills the viewport exactly, at any size or shape, and
+ * never scrolls. .tv is a size container, so everything inside is sized in
+ * cqw/cqh (percent of the screen) instead of fixed rem. The board area is
+ * its own container, and the board picks whichever of width or height
+ * runs out first.
+ */
+.tv {
+  --pad: max(1.2vh, 0.8vw);
+  height: 100vh;
+  height: 100dvh;
+  container-type: size;
+  display: grid;
+  grid-template-rows: minmax(0, 40fr) minmax(0, 60fr);
+  gap: var(--pad);
+  padding: var(--pad) calc(var(--pad) * 1.5);
+  overflow: hidden;
+  position: relative;
+}
+.tv-viewer {
+  /* Phone viewers keep the room header above the board. */
+  height: calc(100vh - 3.7rem);
+  height: calc(100dvh - 3.7rem);
+}
+.tv-top {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  grid-template-areas: "ball info pattern join";
+  align-items: center;
+  gap: 2.5cqw;
+  min-height: 0;
+}
+.tv-ball {
+  grid-area: ball;
+  display: grid;
+  place-items: center;
+}
+.tv-ball .ball {
+  --s: min(36cqh, 19cqw);
+}
+.tv-ready {
+  width: min(36cqh, 19cqw);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 3px dashed var(--line);
+  display: grid;
+  place-content: center;
+  text-align: center;
+  font-size: min(4cqh, 2.2cqw);
+  color: var(--muted);
+}
+.tv-ready strong {
+  font-size: min(14cqh, 7.5cqw);
+  color: var(--text);
+  line-height: 1;
+}
+.tv-info {
+  grid-area: info;
+  display: flex;
+  flex-direction: column;
+  gap: 1.6cqh;
+  min-width: 0;
+}
+.tv-title {
+  /* Always one line, whatever GAME_NAME is: the name shortens with an
+     ellipsis instead of wrapping and pushing the info section down. */
+  display: flex;
+  align-items: center;
+  gap: 1cqw;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  font-size: min(4cqh, 2.1cqw);
+  font-weight: 800;
+}
+.tv-stats {
+  display: flex;
+  gap: 1.5cqw;
+  align-items: center;
+  flex-wrap: wrap;
+  font-size: min(4.2cqh, 2.2cqw);
+}
+.tv-stats strong {
+  font-size: 1.3em;
+}
+.tv-stats .tag {
+  font-size: 0.8em;
+}
+.tv-recent {
+  display: flex;
+  gap: 0.8cqw;
+  flex-wrap: wrap;
+}
+.tv-recent .ball {
+  --s: min(9cqh, 4.8cqw);
+}
+.tv-recent .ball-sm .ball-num {
+  font-size: calc(var(--s) * 0.34);
+}
+.tv-controls {
+  display: flex;
+  gap: 1cqw;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.tv-controls .btn {
+  font-size: min(3cqh, 1.35cqw);
+  padding: 0.6em 1em;
+}
+.tv-controls .tv-call {
+  font-size: min(4.2cqh, 1.9cqw);
+  padding: 0.55em 1.6em;
+}
+.tv-hint,
+.tv-note {
+  font-size: min(2.6cqh, 1.4cqw);
+  margin: 0;
+}
+.tv-pattern {
+  grid-area: pattern;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1cqh;
+}
+.pattern-tv .mini-grid {
+  --w: min(28cqh, 15cqw);
+  gap: max(2px, 0.4cqh);
+}
+.pattern-tv .mini-head {
+  font-size: min(2.6cqh, 1.4cqw);
+}
+.pattern-tv figcaption {
+  font-size: min(3.4cqh, 1.8cqw);
+}
+.tv-winners {
+  font-size: min(3cqh, 1.6cqw);
+  font-weight: 700;
+  color: var(--accent);
+  max-width: 18cqw;
+  text-align: center;
+}
+.tv-join {
+  grid-area: join;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.8cqh;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 1.2cqh 1cqw;
+}
+.tv-join .qr {
+  width: min(22cqh, 11cqw);
+  height: auto;
+}
+.tv-join {
+  /* A long host name ("Join at devbingo.example.org") wraps in here instead
+     of widening the box and squeezing the info column. */
+  max-width: 16cqw;
+}
+.tv-join-text {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: min(2.4cqh, 1.3cqw);
+}
+.tv-join .big-code {
+  font-size: min(6.5cqh, 3.4cqw);
+  line-height: 1.1;
+}
+.tv-board {
+  container-type: size;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+}
+.tv-board .board {
+  /* 16 columns (letter + 15) by 5 rows. --ratio is the board's width:height;
+     3.15 gives square-ish cells. Layouts with less width use taller cells. */
+  --ratio: 3.15;
+  width: min(100cqw, 100cqh * var(--ratio));
+  height: min(100cqh, 100cqw / var(--ratio));
+  grid-template-rows: repeat(5, minmax(0, 1fr));
+  gap: min(0.6cqw, 1.8cqh);
+}
+.tv-board .board-row {
+  gap: min(0.6cqw, 1.8cqh);
+}
+.tv-board .board-cell,
+.tv-board .board-letter {
+  aspect-ratio: auto;
+  /* Whichever runs out first: cell width (board width / 16) or height (/ 5). */
+  font-size: min(3cqw, 3cqh * var(--ratio), 11cqh, 11cqw / var(--ratio));
+  border-radius: min(0.8cqw, 2.4cqh);
+}
+.tv-title > span:not(.tv-tools) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.tv-title > span.muted {
+  flex-shrink: 0;
+}
+.tv-tools {
+  flex-shrink: 0;
+  margin-left: auto;
+  display: flex;
+  gap: 0.6cqw;
+}
+.tv-tool {
+  font-size: min(2.4cqh, 1.3cqw);
+  padding: 0.3em 0.9em;
+  font-weight: 600;
+}
+
+/* Portrait screens (tablet on its side, phone viewers): stack it. */
+@media (orientation: portrait) {
+  .tv {
+    /* Top takes what it needs; the board gets the rest. */
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .tv-top {
+    /* Ball, pattern and QR across the top; info and buttons full width
+       below. Fixed shares, not auto: an auto column grows to the info
+       row's one-line width and pushes the rest off the screen. */
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-rows: auto auto;
+    grid-template-areas:
+      "ball pattern join"
+      "info info info";
+    gap: 2cqh 3cqw;
+    align-items: center;
+  }
+  .no-join .tv-top {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+      "ball pattern"
+      "info info";
+  }
+  .tv-ball .ball {
+    --s: min(22cqh, 30cqw);
+  }
+  .tv-ready {
+    width: min(22cqh, 30cqw);
+  }
+  .tv-viewer .tv-ball .ball {
+    --s: min(24cqh, 42cqw);
+  }
+  .tv-viewer .tv-ready {
+    width: min(24cqh, 42cqw);
+  }
+  .tv-ready strong {
+    font-size: min(9cqh, 15cqw);
+  }
+  .pattern-tv .mini-grid {
+    --w: min(18cqh, 24cqw);
+  }
+  .pattern-tv figcaption,
+  .tv-title,
+  .tv-stats {
+    font-size: min(3cqh, 4.6cqw);
+  }
+  .tv-recent .ball {
+    --s: min(6.5cqh, 11cqw);
+  }
+  .tv-controls .btn {
+    font-size: min(2.6cqh, 4cqw);
+  }
+  .tv-controls .tv-call {
+    font-size: min(3.2cqh, 5cqw);
+  }
+  .tv-tool {
+    font-size: min(2cqh, 3.2cqw);
+  }
+  .tv-hint,
+  .tv-note,
+  .tv-join-text {
+    font-size: min(2cqh, 3.2cqw);
+  }
+  .tv-join {
+    max-width: none;
+  }
+  .tv-join .qr {
+    width: min(14cqh, 24cqw);
+  }
+  .tv-join .big-code {
+    font-size: min(4.5cqh, 7cqw);
+  }
+  .tv-winners {
+    max-width: 40cqw;
+  }
+}
+
+/* ------------------------------------------------ big-screen layouts */
+/*
+ * settings.layout puts .layout-<id> on .tv. "easy" is the base layout above.
+ * The side-by-side layouts only apply in landscape; a portrait screen falls
+ * back to the stacked portrait layout (except Vertical, which suits it).
+ * They dissolve .tv-top (display: contents) so ball / info / pattern / join
+ * and the board are all placed directly on the .tv grid.
+ */
+.layout-stacked .tv-board {
+  order: -1;
+}
+@media (orientation: landscape) {
+  .tv.layout-stacked {
+    grid-template-rows: minmax(0, 60fr) minmax(0, 40fr);
+  }
+
+  .layout-classic .tv-top,
+  .layout-classic-reversed .tv-top,
+  .layout-simple .tv-top,
+  .layout-vertical .tv-top {
+    display: contents;
+  }
+  /*
+   * Side-column layouts share one grid shape: a spacer row above and below
+   * the side pieces, with the board spanning every row. Center: both
+   * spacers flex, so the side group centers beside the board. Top: the top
+   * spacer is 0, so everything starts on the same line as the board. The
+   * spacing comes from margins rather than row-gap, so an empty spacer row
+   * adds nothing and top edges line up exactly.
+   */
+  .tv.layout-classic,
+  .tv.layout-classic-reversed,
+  .tv.layout-simple,
+  .tv.layout-vertical {
+    --lead: minmax(0, 1fr);
+    column-gap: 2cqw;
+    row-gap: 0;
+  }
+  .tv.align-top.layout-classic,
+  .tv.align-top.layout-classic-reversed,
+  .tv.align-top.layout-simple,
+  .tv.align-top.layout-vertical {
+    --lead: 0px;
+  }
+  :is(.layout-classic, .layout-classic-reversed, .layout-simple, .layout-vertical)
+    :is(.tv-ball, .tv-info, .tv-pattern, .tv-join, .tv-board) {
+    margin-block: 1cqh;
+  }
+  :is(.layout-classic, .layout-classic-reversed, .layout-simple, .layout-vertical)
+    :is(.tv-ball, .tv-pattern, .tv-join) {
+    align-self: start;
+    justify-self: center;
+  }
+  .layout-classic .tv-board,
+  .layout-classic-reversed .tv-board,
+  .layout-simple .tv-board,
+  .layout-vertical .tv-board {
+    grid-area: board;
+  }
+  .layout-classic .tv-info,
+  .layout-classic-reversed .tv-info,
+  .layout-simple .tv-info,
+  .layout-vertical .tv-info {
+    align-self: start;
+  }
+
+  /* Classic: a hall flashboard. Board on the left, ball + info on the right. */
+  .tv.layout-classic {
+    grid-template-columns: minmax(0, 70fr) minmax(0, var(--fr15, 15fr)) minmax(0, var(--fr15, 15fr));
+    grid-template-rows: var(--lead) auto auto auto minmax(0, 1fr);
+    grid-template-areas:
+      "board . ."
+      "board ball ball"
+      "board info info"
+      "board pattern join"
+      "board . .";
+  }
+  .tv.layout-classic-reversed {
+    grid-template-columns: minmax(0, var(--fr15, 15fr)) minmax(0, var(--fr15, 15fr)) minmax(0, 70fr);
+    grid-template-rows: var(--lead) auto auto auto minmax(0, 1fr);
+    grid-template-areas:
+      ". . board"
+      "ball ball board"
+      "info info board"
+      "pattern join board"
+      ". . board";
+  }
+  .no-join.layout-classic {
+    grid-template-areas:
+      "board . ."
+      "board ball ball"
+      "board info info"
+      "board pattern pattern"
+      "board . .";
+  }
+  .no-join.layout-classic-reversed {
+    grid-template-areas:
+      ". . board"
+      "ball ball board"
+      "info info board"
+      "pattern pattern board"
+      ". . board";
+  }
+  .layout-classic .tv-ball .ball,
+  .layout-classic-reversed .tv-ball .ball {
+    --s: min(26cqh, 15cqw);
+  }
+  .layout-classic .tv-ready,
+  .layout-classic-reversed .tv-ready {
+    width: min(26cqh, 15cqw);
+  }
+  .layout-classic .tv-board .board,
+  .layout-classic-reversed .tv-board .board {
+    --ratio: 1.75;
+  }
+  /* Simple: the board in the middle, game info either side. */
+  .tv.layout-simple {
+    grid-template-columns: minmax(0, 22fr) minmax(0, 56fr) minmax(0, var(--fr22, 22fr));
+    grid-template-rows: var(--lead) auto auto minmax(0, 1fr);
+    grid-template-areas:
+      ". board ."
+      "ball board pattern"
+      "info board join"
+      ". board .";
+  }
+  .no-join.layout-simple {
+    grid-template-areas:
+      ". board ."
+      "ball board pattern"
+      "info board ."
+      ". board .";
+  }
+  .layout-simple .tv-ball .ball {
+    --s: min(34cqh, 17cqw);
+  }
+  .layout-simple .tv-ready {
+    width: min(34cqh, 17cqw);
+  }
+  .layout-simple .tv-board .board {
+    --ratio: 1.8;
+  }
+
+  /* Vertical, on a landscape screen: info on the left, B-I-N-G-O columns right. */
+  .tv.layout-vertical {
+    grid-template-columns: minmax(0, 30fr) minmax(0, var(--fr26, 26fr)) minmax(0, 44fr);
+    grid-template-rows: var(--lead) auto auto minmax(0, 1fr);
+    grid-template-areas:
+      ". . board"
+      "ball pattern board"
+      "info join board"
+      ". . board";
+  }
+  .no-join.layout-vertical {
+    grid-template-areas:
+      ". . board"
+      "ball pattern board"
+      "info info board"
+      ". . board";
+  }
+  .layout-vertical .tv-board .board {
+    --ratio: 0.8;
+  }
+
+  /* Narrow side columns: shrink the smaller pieces to fit. */
+  .layout-classic .tv-recent .ball,
+  .layout-classic-reversed .tv-recent .ball,
+  .layout-simple .tv-recent .ball {
+    --s: min(8cqh, 3.5cqw);
+  }
+  .layout-classic .tv-recent,
+  .layout-classic-reversed .tv-recent,
+  .layout-simple .tv-recent {
+    gap: 0.5cqw;
+  }
+  .layout-classic .pattern-tv .mini-grid,
+  .layout-classic-reversed .pattern-tv .mini-grid,
+  .layout-simple .pattern-tv .mini-grid {
+    --w: min(24cqh, 12cqw);
+  }
+  .layout-classic .tv-join .qr,
+  .layout-classic-reversed .tv-join .qr,
+  .layout-simple .tv-join .qr {
+    width: min(18cqh, 9cqw);
+  }
+  .layout-classic .tv-join .big-code,
+  .layout-classic-reversed .tv-join .big-code,
+  .layout-simple .tv-join .big-code {
+    font-size: min(5.5cqh, 2.8cqw);
+  }
+  .layout-classic .tv-title,
+  .layout-classic-reversed .tv-title,
+  .layout-simple .tv-title,
+  .layout-classic .tv-stats,
+  .layout-classic-reversed .tv-stats,
+  .layout-simple .tv-stats {
+    font-size: min(3.6cqh, 1.7cqw);
+  }
+  .layout-classic .tv-controls .btn,
+  .layout-classic-reversed .tv-controls .btn,
+  .layout-simple .tv-controls .btn {
+    font-size: min(3cqh, 1.4cqw);
+  }
+  .layout-classic .tv-controls .tv-call,
+  .layout-classic-reversed .tv-controls .tv-call,
+  .layout-simple .tv-controls .tv-call {
+    font-size: min(4.2cqh, 2cqw);
+  }
+  .layout-classic .tv-tool,
+  .layout-classic-reversed .tv-tool,
+  .layout-simple .tv-tool {
+    font-size: min(2.2cqh, 1cqw);
+  }
+
+  /* The side column is tight: smaller pieces, no keyboard hint. */
+  .layout-classic .tv-hint,
+  .layout-classic-reversed .tv-hint {
+    display: none;
+  }
+  .layout-classic .pattern-tv .mini-grid,
+  .layout-classic-reversed .pattern-tv .mini-grid {
+    --w: min(19cqh, 10cqw);
+  }
+  .layout-classic .tv-join .qr,
+  .layout-classic-reversed .tv-join .qr {
+    width: min(14cqh, 8cqw);
+  }
+  .layout-classic .tv-join .big-code,
+  .layout-classic-reversed .tv-join .big-code {
+    font-size: min(4.5cqh, 2.2cqw);
+  }
+  .layout-classic .tv-controls .btn,
+  .layout-classic-reversed .tv-controls .btn {
+    font-size: min(2.4cqh, 1.15cqw);
+  }
+  .layout-classic .tv-controls .tv-call,
+  .layout-classic-reversed .tv-controls .tv-call {
+    font-size: min(3.4cqh, 1.6cqw);
+  }
+}
+
+/* Vertical board: B-I-N-G-O as five columns of 15 (any orientation). The
+   rows dissolve so their 16 cells each fill one column of the grid. */
+.layout-vertical .tv-board .board {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-rows: repeat(16, minmax(0, 1fr));
+  grid-auto-flow: column;
+}
+.layout-vertical .tv-board .board-row {
+  display: contents;
+}
+.layout-vertical .tv-board .board-cell,
+.layout-vertical .tv-board .board-letter {
+  /* Cell width is board width / 5, height is board height / 16. */
+  font-size: min(8cqw, 8cqh * var(--ratio), 3.6cqh, 3.6cqw / var(--ratio));
+}
+
+/* Very wide screens (21:9): the top row needs a little more height. */
+@media (min-aspect-ratio: 2/1) {
+  .tv {
+    grid-template-rows: minmax(0, 44fr) minmax(0, 56fr);
+  }
+  .tv.layout-stacked {
+    grid-template-rows: minmax(0, 56fr) minmax(0, 44fr);
+  }
+}
+
+@media (orientation: portrait) {
+  .tv.layout-stacked {
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+  /* Vertical on a tall screen: info down the left, B-I-N-G-O columns taking
+     the full height on the right. */
+  .layout-vertical .tv-top {
+    display: contents;
+  }
+  .tv.layout-vertical {
+    --lead: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 22fr) minmax(0, 22fr) minmax(0, 56fr);
+    grid-template-rows: var(--lead) auto auto auto minmax(0, 1fr);
+    grid-template-areas:
+      ". . board"
+      "ball ball board"
+      "info info board"
+      "pattern join board"
+      ". . board";
+    column-gap: 3cqw;
+    row-gap: 0;
+  }
+  .tv.align-top.layout-vertical {
+    --lead: 0px;
+  }
+  .no-join.layout-vertical {
+    grid-template-areas:
+      ". . board"
+      "ball ball board"
+      "info info board"
+      "pattern pattern board"
+      ". . board";
+  }
+  .layout-vertical :is(.tv-ball, .tv-info, .tv-pattern, .tv-join, .tv-board) {
+    margin-block: 1cqh;
+  }
+  .layout-vertical :is(.tv-ball, .tv-pattern, .tv-join) {
+    align-self: start;
+    justify-self: center;
+  }
+  .layout-vertical .tv-board {
+    grid-area: board;
+  }
+  .layout-vertical .tv-info {
+    align-self: start;
+  }
+  .layout-vertical .tv-ball .ball {
+    --s: min(17cqh, 30cqw);
+  }
+  .layout-vertical .tv-ready {
+    width: min(17cqh, 30cqw);
+  }
+  .layout-vertical .tv-recent {
+    gap: 1cqw;
+    flex-wrap: nowrap;
+  }
+  .layout-vertical .tv-recent .ball {
+    --s: min(5cqh, 7cqw);
+  }
+  .layout-vertical .tv-controls .btn {
+    font-size: min(2.2cqh, 3.4cqw);
+  }
+  .layout-vertical .tv-controls .tv-call {
+    font-size: min(2.8cqh, 4.2cqw);
+  }
+  .layout-vertical .pattern-tv .mini-grid {
+    --w: min(14cqh, 18cqw);
+  }
+  .layout-vertical .tv-join .qr {
+    width: min(11cqh, 15cqw);
+  }
+  .layout-vertical .tv-join .big-code {
+    font-size: min(3cqh, 4.4cqw);
+  }
+  .layout-vertical .tv-hint {
+    display: none;
+  }
+  /* The side column is narrow: let the buttons drop under the name. */
+  .layout-vertical .tv-title {
+    flex-wrap: wrap;
+  }
+  .layout-vertical .tv-tools {
+    margin-left: 0;
+    flex-wrap: wrap;
+    row-gap: 0.6cqh;
+    max-width: 100%;
+  }
+  .layout-vertical .tv-board .board {
+    --ratio: 0.45;
+  }
+}
+
+/* Alignment, Top: the info row's pieces and the board start at the top
+   of their areas instead of centering. */
+.align-top .tv-top {
+  align-items: start;
+}
+.align-top .tv-board {
+  align-items: start;
+}
+/* Board shape, Fill the space: the board takes its whole area (cells
+   aren't square any more). Font: cell width (/16) or height (/5). */
+.board-fill .tv-board .board {
+  width: 100cqw;
+  height: 100cqh;
+}
+.board-fill .tv-board .board-cell,
+.board-fill .tv-board .board-letter {
+  font-size: min(3.2cqw, 11cqh);
+}
+.board-fill.layout-vertical .tv-board .board-cell,
+.board-fill.layout-vertical .tv-board .board-letter {
+  font-size: min(8cqw, 3.6cqh);
+}
+.hide-recent .tv-recent {
+  display: none;
+}
+
+/* Layout + animation picker (host settings and the board menu). */
+.subhead {
+  margin: 1.2rem 0 0.3rem;
+  font-size: 1rem;
+}
+.layout-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr));
+  gap: 0.5rem;
+  margin: 0.5rem 0;
+}
+.layout-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.5rem;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.layout-tile.on {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 2px var(--accent);
+  font-weight: 700;
+}
+.layout-thumb {
+  width: 100%;
+  max-width: 6rem;
+}
+.lt-info {
+  fill: var(--panel-2);
+  stroke: var(--line);
+  stroke-width: 0.15;
+}
+.lt-board {
+  fill: var(--accent);
+  opacity: 0.85;
+}
+.display-picker select {
+  margin-top: 0.3rem;
+}
+.tv-tool.on {
+  background: var(--panel-2);
+}
+.tv-menu {
+  position: absolute;
+  top: var(--pad);
+  right: var(--pad);
+  z-index: 20;
+  width: min(34rem, calc(100vw - 2rem));
+  max-height: calc(100% - 2 * var(--pad));
+  overflow: auto;
+  margin: 0;
+  box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.5);
+}
+/*
+ * Pattern card size and placement (settings.patternScale / patternPlace).
+ * The card stays in the layout. Placement presets swap grid areas, so they
+ * work in every layout. A scaled card is sized with zoom (TableView), and
+ * the layout makes room: Easy / Stacked switch to a content-sized info row
+ * so the board shrinks, and Classic gives a big card the full side column.
+ */
+.place-ball .tv-ball {
+  grid-area: pattern;
+}
+.place-ball .tv-pattern {
+  grid-area: ball;
+}
+.place-join .tv-join {
+  grid-area: pattern;
+}
+.place-join .tv-pattern {
+  grid-area: join;
+}
+.tv.layout-easy.pattern-scaled {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+.tv.layout-stacked.pattern-scaled {
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+/*
+ * A scaled card widens the column it sits in, so the board gives up width
+ * (TableView sets --fr15/22/26/30 to the layout's normal share times the
+ * shown scale). Which column that is depends on the placement swap.
+ */
+@media (orientation: landscape) {
+  .tv.layout-simple.place-ball {
+    grid-template-columns: minmax(0, var(--fr22, 22fr)) minmax(0, 56fr) minmax(0, 22fr);
+  }
+  .tv.layout-vertical.place-ball {
+    grid-template-columns: minmax(0, var(--fr30, 30fr)) minmax(0, 26fr) minmax(0, 44fr);
+  }
+  /* Classic, ball swapped into the pattern's single side cell: fit the cell. */
+  .layout-classic.place-ball .tv-ball .ball,
+  .layout-classic-reversed.place-ball .tv-ball .ball {
+    --s: min(26cqh, calc(13cqw * var(--ps, 1)));
+  }
+  .layout-classic.place-ball .tv-ready,
+  .layout-classic-reversed.place-ball .tv-ready {
+    width: min(26cqh, calc(13cqw * var(--ps, 1)));
+  }
+}
+.tv-tools {
+  position: relative;
+  z-index: 2;
+}
+.pattern-size,
+.pattern-place {
+  display: grid;
+  gap: 0.4rem;
+  margin-top: 0.8rem;
+}
+.pattern-size input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent);
+  padding: 0;
+}
+.pattern-size .segmented,
+.pattern-place .segmented {
+  flex-wrap: wrap;
+  border-radius: 12px;
+}
+.tv-menu h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.table-overlay {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(8, 10, 22, 0.82);
+  z-index: 20;
+  animation: fade 0.3s ease;
+}
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+.overlay-box {
+  text-align: center;
+  background: var(--panel);
+  border: 2px solid var(--accent);
+  border-radius: 24px;
+  padding: min(4vh, 3vw) min(5vh, 4vw);
+  width: min(92vw, 70vh);
+  max-height: 96vh;
+  overflow: auto;
+}
+.overlay-box h1 {
+  font-size: min(12vh, 12vw);
+  color: var(--accent);
+  letter-spacing: 0.05em;
+  margin: 0;
+}
+.overlay-box h2 {
+  font-size: min(5.5vh, 6vw);
+  margin-bottom: min(2vh, 1rem);
+}
+.overlay-box .card {
+  max-width: min(46vh, 80vw);
+}
+.overlay-box .card-cell {
+  font-size: min(3.6vh, 5vw);
+}
+.overlay-box .btn {
+  font-size: min(2.8vh, 4vw);
+}
+.center-row {
+  justify-content: center;
+}
+.switch.small {
+  font-size: 0.85rem;
+}
+@media (max-width: 420px) {
+  .ball-lg {
+    --s: 4.4rem;
+  }
+  .pattern-row {
+    flex-direction: column;
+    align-items: center;
+  }
+  .invite-row {
+    flex-direction: column;
+    text-align: center;
+  }
+}
+
+.banner-float {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  border-radius: 0 0 12px 12px;
+}
+.board-here {
+  margin-top: 0.75rem;
+}
+.host-hint {
+  margin: 0.4rem 0 0.9rem;
+  text-align: center;
+}
+.btn,
+.icon-btn {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation; /* no double-tap zoom delay on the draw button */
+}
+.overlay-box .card-cell.free {
+  font-size: min(1.8vh, 2.6vw);
+}
+
+/* ------------------------------------------------------------------ admin */
+.btn-danger {
+  background: transparent;
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.tv-tool-danger {
+  border-color: rgba(255, 107, 107, 0.6);
+  color: var(--danger);
+}
+.game-panel .row {
+  margin-top: 0;
+}
+.home-foot {
+  text-align: center;
+  margin-top: 1.5rem;
+}
+.admin {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 3rem;
+}
+.admin-head,
+.admin-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+.admin-row h2 {
+  margin: 0;
+}
+.admin-login {
+  max-width: 420px;
+}
+.admin-login label {
+  margin-bottom: 0.8rem;
+}
+.warning {
+  background: rgba(242, 179, 61, 0.12);
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  padding: 0.7rem 0.9rem;
+  font-size: 0.9rem;
+}
+.note {
+  color: var(--ok);
+}
+.admin-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.admin-form label {
+  flex: 1;
+  min-width: 14rem;
+}
+.admin-table-wrap {
+  overflow-x: auto;
+}
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+.admin-table th {
+  text-align: left;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.admin-table th,
+.admin-table td {
+  padding: 0.55rem 0.6rem;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+.admin-table .dot {
+  display: inline-block;
+}
+.admin-code {
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: var(--accent);
+}
+
+/* Side-column layouts: the info column can be narrow (and narrower still
+   when the pattern is enlarged), so the title's buttons drop to a second
+   line instead of running into the board. */
+@media (orientation: landscape) {
+  .layout-classic .tv-title,
+  .layout-classic-reversed .tv-title,
+  .layout-simple .tv-title,
+  .layout-vertical .tv-title {
+    flex-wrap: wrap;
+  }
+  .layout-classic .tv-tools,
+  .layout-classic-reversed .tv-tools,
+  .layout-simple .tv-tools,
+  .layout-vertical .tv-tools {
+    margin-left: 0;
+  }
+}
+
+/* Display picker: themes, labels, rows. */
+.picker-label {
+  display: block;
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin: 0.9rem 0 0.35rem;
+}
+.picker-field .picker-label {
+  margin-top: 0.6rem;
+}
+.picker-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 1.2rem;
+}
+.picker-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.2rem;
+}
+.picker-field select {
+  margin: 0;
+}
+.theme-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(6.5rem, 1fr));
+  gap: 0.5rem;
+}
+.theme-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.35rem;
+  padding: 0.45rem;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+.theme-tile.on {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 2px var(--accent);
+  font-weight: 700;
+}
+.theme-swatch {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  height: 1.6rem;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid rgba(127, 127, 127, 0.35);
+}
+.save-default {
+  margin-top: 1rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--line);
+}
+.admin-actions {
+  white-space: nowrap;
+}
+.admin-actions .btn + .btn {
+  margin-left: 0.4rem;
+}
+
+/* Skip unused numbers: rows the caller won't draw from this pattern. */
+.board-cell.skipped,
+.board-letter.skipped {
+  opacity: 0.28;
+}
+
+/* Board pattern card: tap it to open the pattern picker (callers only). */
+.tv-pattern-btn {
+  position: relative;
+  display: block;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  border-radius: 0.6rem;
+}
+.tv-pattern-btn:hover,
+.tv-pattern-btn:focus-visible {
+  outline: 2px solid var(--accent, #f5b942);
+  outline-offset: 4px;
+}
+.pattern-pencil {
+  color: var(--accent);
+}
+
+/* Pattern picker: the card grown into a big box, shrinking back on close. */
+.pp-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 2vmin;
+  background: rgba(0, 0, 0, 0.55);
+  animation: pp-fade 0.16s ease-out;
+}
+.pp-box {
+  width: min(64rem, 96vw);
+  max-height: 94vh;
+  overflow: auto;
+  margin: 0;
+  box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.5);
+  animation: pp-grow 0.18s ease-out;
+}
+.pp-backdrop.closing {
+  animation: pp-fade 0.16s ease-in reverse forwards;
+}
+.pp-backdrop.closing .pp-box {
+  animation: pp-grow 0.16s ease-in reverse forwards;
+}
+@keyframes pp-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes pp-grow {
+  from { transform: scale(0.35); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pp-backdrop,
+  .pp-box,
+  .pp-backdrop.closing,
+  .pp-backdrop.closing .pp-box {
+    animation: none;
+  }
+}
+.pp-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+  gap: 0.7rem;
+  margin-top: 0.8rem;
+}
+.pp-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.7rem 0.4rem;
+  border: 2px solid var(--line, rgba(255, 255, 255, 0.15));
+  border-radius: 0.8rem;
+  background: var(--panel-2, rgba(255, 255, 255, 0.04));
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-align: center;
+  cursor: pointer;
+}
+.pp-tile:hover {
+  border-color: var(--muted);
+}
+.pp-tile.on {
+  border-color: var(--accent, #f5b942);
+  box-shadow: 0 0 0 2px var(--accent, #f5b942) inset;
+}
+.pp-tile .pattern {
+  margin: 0;
+}
+.pp-pencil {
+  display: grid;
+  place-items: center;
+  width: 5rem;
+  height: 5rem;
+  font-size: 2.4rem;
+  color: var(--muted);
+}
+.pp-draw {
+  display: grid;
+  justify-items: center;
+  gap: 0.8rem;
+  margin-top: 0.6rem;
+}
+.pp-draw .mini-grid {
+  --w: min(24rem, 70vw, 55vh);
+  gap: 6px;
+}
+.pp-draw .mini-head {
+  font-size: 1.2rem;
+}
+
+/* Bar Games: the venue's logo next to the name on the main screen (box only). */
+.tv-logo {
+  height: 1.3em;
+  width: auto;
+  flex-shrink: 0;
+  object-fit: contain;
+}

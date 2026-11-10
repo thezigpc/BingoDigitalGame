@@ -1,0 +1,24 @@
+{
+  "name": "bingo-digital-game",
+  "private": true,
+  "workspaces": [
+    "shared",
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "build:shared": "npm run build -w shared",
+    "dev": "npm run build:shared && concurrently -n server,client -c blue,green \"npm run dev -w server\" \"npm run dev -w client\"",
+    "build": "npm run build -w shared && npm run build -w server && npm run build -w client",
+    "test": "node --test --test-concurrency=1 \"test/specs/*.test.mjs\"",
+    "test:build": "npm run build && npm test"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "esbuild@0.21.5": true
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.1",
+    "socket.io-client": "^4.7.5"
+  }
+}

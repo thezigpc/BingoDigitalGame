@@ -1,0 +1,47 @@
+# Production, on a Linux Docker host.
+# Deploy with: docker compose up -d --build   (scripts/deploy-prod.sh does this)
+#
+# The app publishes to 127.0.0.1 only. Public traffic arrives through bingo's
+# OWN Cloudflare tunnel ("bingo"), run as the cloudflared service below, so
+# deploying or restarting bingo never touches other tunnels on the same host.
+services:
+  app:
+    build: .
+    container_name: bingo-app
+    restart: unless-stopped
+    ports:
+      # Host port 3004 (lower ports are taken by other apps on the production
+      # host). The tunnel below reaches the app
+      # over the compose network (app:3002), so this is only for local health checks.
+      - "127.0.0.1:3004:3002"
+    environment:
+      PORT: "3002"
+      DATA_DIR: /data
+      GAME_NAME: "${GAME_NAME:-Bingo Night}"
+      # Leave unset to use the /admin first-run setup screen.
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD:-}"
+      LOG_LEVEL: "${LOG_LEVEL:-info}"
+    volumes:
+      # Admin password hash and settings survive rebuilds.
+      - ./data:/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3002/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+
+  tunnel:
+    image: cloudflare/cloudflared:2026.10.4
+    container_name: bingo-tunnel
+    restart: unless-stopped
+    # The deploy user's uid, so it can read the 0600 credentials file it owns.
+    user: "1000:1000"
+    depends_on:
+      app:
+        condition: service_healthy
+    # ./cloudflared holds config.yml and the tunnel credentials JSON (not in the image,
+    # not copied by deploys).
+    command: tunnel --no-autoupdate --config /etc/cloudflared/config.yml run
+    volumes:
+      - ./cloudflared:/etc/cloudflared:ro

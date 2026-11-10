@@ -1,0 +1,14 @@
+node_modules
+**/node_modules
+**/dist
+**/*.tsbuildinfo
+.git
+.vscode
+test
+scripts
+*.log
+.env
+# Runtime data (admin password hash, settings) lives in the mounted /data volume,
+# never baked into the image.
+data
+cloudflared

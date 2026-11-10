@@ -1,0 +1,15 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.env
+*.log
+data/
+cloudflared/
+*.pem
+credentials.json
+
+# Private, machine-specific notes and deploy settings
+CLAUDE.local.md
+scripts/*.local.sh
+scripts/*.local.ps1
+!scripts/*.local.example.*
