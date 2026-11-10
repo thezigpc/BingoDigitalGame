@@ -217,6 +217,17 @@ edit anything under GameBroker.
 - **Mock box:** `npx bargames mock-box . --game http://127.0.0.1:<port>`. Pass `--game`
   to `check`, `status` and `command` too: without it they hit port 3002, which is the
   live dev site on this PC.
+- **SDK 0.2.0** (2026-11-10):
+  - **`create_room`** makes a `kind: "venue"` room with an empty host seat named
+    "Venue" (`RoomManager.createVenueRoom`). Its `hostUrl` is
+    `/join/{code}?host=<seat token>`, which `HomePage` turns into that host session.
+  - **Idle sweep:** skips venue rooms while a table socket is connected.
+  - **Casting:** the host-only `listTvs`/`castToTvs`/`stopTvs` intents drive the
+    `TvsPanel`. It renders nothing off a box, or when the venue turned casting off.
+  - **Box TVs:** a display-only table on a box shows no buttons (⛶ is hidden only
+    there).
+  - **Releases:** bump `version` and the image tag in `bargames.json` together. Never
+    re-publish a tag.
 
 ## Lesson: socket.io transports through Cloudflare Tunnel (2026-11-08)
 

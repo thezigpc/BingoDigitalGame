@@ -29,6 +29,32 @@ export async function displayName(fallback: string): Promise<string> {
   return onBox ? (await bg.venue()).game.displayName : fallback;
 }
 
+/** TV ids and PIN from a host's cast request, bounded. Bad input: no ids. */
+function castArgs(req: unknown): { ids: string[]; pin?: string } {
+  const r = (req ?? {}) as { ids?: unknown; pin?: unknown };
+  const ids = Array.isArray(r.ids)
+    ? r.ids.filter((x): x is string => typeof x === "string" && x.length > 0 && x.length <= 200).slice(0, 50)
+    : [];
+  const pin = typeof r.pin === "string" && r.pin ? r.pin.slice(0, 32) : undefined;
+  return { ids, pin };
+}
+
+/**
+ * Casting from the host screen (step 6b). Callers check the room's host first.
+ * Off a box the SDK answers enabled: false / ok: false without any network call.
+ */
+export const tvs = {
+  list: () => bg.displays(),
+  cast: (room: Room, req: unknown) => {
+    const { ids, pin } = castArgs(req);
+    return ids.length ? bg.cast(room.code, ids, { pin }) : Promise.resolve({ ok: false, message: "Pick a TV first." });
+  },
+  stop: (req: unknown) => {
+    const { ids, pin } = castArgs(req);
+    return ids.length ? bg.stopCast(ids, { pin }) : Promise.resolve({ ok: false, message: "Pick a TV first." });
+  },
+};
+
 /** Same text the host's own "Close room" sends to everyone in the room. */
 export const HOST_CLOSE_REASON = "The host ended this room.";
 
@@ -82,6 +108,15 @@ export function registerBarGames(rooms: RoomManager): void {
     return { ok: true };
   });
 
+  // The box starts a room for its TVs (iPad: "Put a game on the TVs > New room").
+  // No host phone: the commands above drive it, and hostUrl opens the empty
+  // host seat on the staff iPad. Opening /join/{code}?as=table casts it.
+  bg.onCreateRoom(({ kind, title }) => {
+    const { room, hostToken } = rooms.createVenueRoom({ kind, title }); // throws GameError("ROOM_FULL") at the cap
+    room.broadcast();
+    return { roomCode: room.code, hostUrl: `/join/${room.code}?host=${encodeURIComponent(hostToken)}` };
+  });
+
   bg.setStatusProvider(
     (): GameStatus => ({
       rooms: rooms.all().map((r) => {
@@ -91,7 +126,7 @@ export function registerBarGames(rooms: RoomManager): void {
           kind: r.kind,
           players: s.players,
           phase: r.phase,
-          title: `Game ${r.gameNumber}: ${r.pattern().name}`,
+          title: `${r.title ? `${r.title} · ` : ""}Game ${r.gameNumber}: ${r.pattern().name}`,
           hostConnected: s.hostConnected,
         };
       }),

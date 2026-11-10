@@ -55,6 +55,9 @@ export function TableView({ view, skew, act, viewer = false, onHostControls }: P
   const venueLogo = isOnBox(venue) ? venue.game.theme.logoUrl : undefined;
   const playing = view.phase === "playing";
   const control = view.you.canControl && !viewer;
+  // A box's TV: a kiosk browser with the mouse hidden, already full screen.
+  // Nobody can press anything there, so it shows no buttons at all.
+  const boxTv = isOnBox(venue) && !control;
   const pending = view.claims.find((c) => c.status === "pending");
   const winners = view.claims.filter((c) => c.status === "confirmed");
   const latestWinner = winners[winners.length - 1];
@@ -230,7 +233,7 @@ export function TableView({ view, skew, act, viewer = false, onHostControls }: P
                   ⚙
                 </button>
               )}
-              {!viewer && (
+              {!viewer && !boxTv && (
                 <button
                   className="btn btn-ghost tv-tool"
                   onClick={toggleFullscreen}

@@ -10,7 +10,7 @@ import {
   type ServerToClientEvents,
 } from "@bingo/shared";
 import { getAdminSettings } from "../admin/settings.js";
-import { clientIp, HOST_CLOSE_REASON } from "../bargames.js";
+import { clientIp, HOST_CLOSE_REASON, tvs } from "../bargames.js";
 import { GameError } from "../rooms/errors.js";
 import type { Member, Room } from "../rooms/Room.js";
 import type { RoomManager } from "../rooms/RoomManager.js";
@@ -111,6 +111,37 @@ export function registerSocketHandlers(io: IO, rooms: RoomManager): void {
         }
       });
     }
+
+    /** Like on(), for the host only and async (the venue-TV calls go to the box). No broadcast. */
+    function onHostAsync<A>(event: keyof ClientToServerEvents, fn: (room: Room, arg: A) => Promise<object>) {
+      (socket.on as (e: string, h: (...args: unknown[]) => void) => void)(event, async (...args: unknown[]) => {
+        const ack = args[args.length - 1] as AckFn;
+        const arg = (args.length > 1 ? args[0] : undefined) as A;
+        try {
+          const { code, memberId } = socket.data;
+          const room = code ? rooms.get(code) : undefined;
+          if (!room || !memberId || !room.members.has(memberId)) throw new GameError("NOT_IN_ROOM");
+          room.requireHost(memberId);
+          const result = await fn(room, arg);
+          if (typeof ack === "function") ack({ ok: true, ...result });
+        } catch (err) {
+          fail(ack, err);
+        }
+      });
+    }
+
+    // Venue TVs (Bar Games box only; off a box: enabled false and every cast refused).
+    onHostAsync("listTvs", async () => ({ tvs: await tvs.list() }));
+    onHostAsync("castToTvs", async (room, req) => {
+      const result = await tvs.cast(room, req);
+      log.info("room", "cast to TVs", { code: room.code, ok: result.ok });
+      return { result };
+    });
+    onHostAsync("stopTvs", async (room, req) => {
+      const result = await tvs.stop(req);
+      log.info("room", "stopped TVs", { code: room.code, ok: result.ok });
+      return { result };
+    });
 
     socket.on("createRoom", (req, ack) => {
       try {

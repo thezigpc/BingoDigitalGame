@@ -9,7 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@bargames/sdk": "file:../vendor/bargames-sdk-0.1.0.tgz",
+    "@bargames/sdk": "file:../vendor/bargames-sdk-0.2.0.tgz",
     "@bingo/shared": "*",
     "qrcode": "^1.5.4",
     "react": "^18.3.1",

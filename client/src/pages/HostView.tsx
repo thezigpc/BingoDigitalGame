@@ -21,6 +21,7 @@ import {
 } from "../components/bits";
 import type { Act } from "./RoomPage";
 import { RoomDisplayPicker } from "../components/DisplayPicker";
+import { TvsPanel } from "../components/TvsPanel";
 
 interface Props {
   view: RoomView;
@@ -143,6 +144,7 @@ export function HostView({ view, skew, act, onShowBoard }: Props) {
 
       <SettingsPanel view={view} act={act} />
       <PlayersPanel view={view} act={act} />
+      <TvsPanel code={view.code} />
       <TablesPanel view={view} act={act} onShowBoard={onShowBoard} />
       <InvitePanel code={view.code} />
     </main>

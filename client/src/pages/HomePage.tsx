@@ -82,7 +82,16 @@ export function HomePage() {
 
   // /join/ABCD?as=table opens straight into the Table display (the host's
   // "Open Table display" button uses this).
+  // /join/ABCD?host=<seat token>: a Bar Games box's "Open the host controls"
+  // link for a venue room it created (no host phone). It takes that room's host
+  // seat; the room page resumes it like any reload.
   useEffect(() => {
+    const hostToken = search.get("host");
+    if (hostToken && code.length === 4) {
+      saveSession({ roomCode: code, token: hostToken, name: "Venue", role: "host" });
+      navigate(`/room/${code}`, { replace: true });
+      return;
+    }
     if (search.get("as") === "table" && code.length === 4 && !autoTable.current) {
       autoTable.current = true;
       join("table");

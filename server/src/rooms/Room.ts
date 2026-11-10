@@ -79,10 +79,13 @@ export class Room {
   /** Secret in the host's "Open Table display" link: a table joining with it gets control. */
   readonly tableKey = newToken();
   /**
-   * Bar Games session kind. Everything is "patron" today; a box will later
-   * create "venue" rooms. Only used in events and status.
+   * Bar Games session kind: "patron" for rooms a host phone creates, "venue"
+   * for the box's create_room. Used in events and status, and venue rooms
+   * aren't idle-closed while a TV shows them.
    */
   kind: SessionKind = "patron";
+  /** Optional title from the box's create_room (status only). */
+  title?: string;
   private playersEventTimer: NodeJS.Timeout | null = null;
   private playersReported = 0;
 
@@ -152,6 +155,11 @@ export class Room {
 
   detachSocket(memberId: string, socketId: string): void {
     this.members.get(memberId)?.socketIds.delete(socketId);
+  }
+
+  hasConnectedTable(): boolean {
+    for (const m of this.members.values()) if (m.role === "table" && m.socketIds.size > 0) return true;
+    return false;
   }
 
   removeMember(memberId: string, reason: string): void {

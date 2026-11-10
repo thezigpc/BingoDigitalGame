@@ -291,6 +291,31 @@ export interface JoinResult {
   name: string;
 }
 
+// ------------------------------------------------------------- venue TVs
+// Bar Games box only (BARGAMES.md, "Casting"). Mirrors the SDK's CastTargets /
+// CastResult so the shared package doesn't depend on the SDK.
+
+export interface TvDisplay {
+  id: string;
+  name: string;
+  group?: string;
+  busy: boolean;
+  showingThisGame: boolean;
+  roomCode?: string;
+}
+/** enabled false (always, off a box): hide the TVs control. */
+export interface TvTargets {
+  enabled: boolean;
+  pinRequired: boolean;
+  displays: TvDisplay[];
+}
+export interface TvCastResult {
+  ok: boolean;
+  message?: string;
+  /** needsCode: the TV isn't paired with the box yet (staff do that in the box admin). */
+  results?: Record<string, { ok: boolean; message?: string; needsCode?: boolean }>;
+}
+
 export interface ClientToServerEvents {
   createRoom: (req: { name?: string; display?: Partial<DisplaySettings> }, ack: Ack<JoinResult>) => void;
   /** Lets the join form know whether to ask for a name. */
@@ -306,6 +331,10 @@ export interface ClientToServerEvents {
   setTableControl: (req: { memberId: string; canControl: boolean }, ack: Ack) => void;
   kickPlayer: (memberId: string, ack: Ack) => void;
   closeRoom: (ack: Ack) => void;
+  /** Bar Games box only: the venue's TVs, and putting this room on them. */
+  listTvs: (ack: Ack<{ tvs: TvTargets }>) => void;
+  castToTvs: (req: { ids: string[]; pin?: string }, ack: Ack<{ result: TvCastResult }>) => void;
+  stopTvs: (req: { ids: string[]; pin?: string }, ack: Ack<{ result: TvCastResult }>) => void;
 
   // host, or a Table display with control
   startGame: (ack: Ack) => void;

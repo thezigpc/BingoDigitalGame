@@ -1,3 +1,4 @@
+import type { SessionKind } from "@bargames/sdk";
 import type { AdminRoomSummary } from "@bingo/shared";
 import { MAX_ROOMS, ROOM_SWEEP_INTERVAL_MS } from "../config.js";
 import { getAdminSettings } from "../admin/settings.js";
@@ -24,16 +25,30 @@ export class RoomManager {
     return this.rooms.size;
   }
 
-  create(): Room {
+  create(kind: SessionKind = "patron"): Room {
     if (this.rooms.size >= MAX_ROOMS) throw new GameError("ROOM_FULL");
     let code = newRoomCode();
     while (this.rooms.has(code)) code = newRoomCode();
     const room = new Room(code, this.transport);
+    room.kind = kind;
     room.onFatalError = () => this.closeRoom(code, "Something went wrong and this room had to close.", "error");
     this.rooms.set(code, room);
     log.info("room", "created", { code, rooms: this.rooms.size });
     bg.emit({ type: "room_created", roomCode: code, sessionKind: room.kind });
     return room;
+  }
+
+  /**
+   * Bar Games create_room: a room the box starts for its TVs, with no host
+   * phone. It gets an empty host seat (named "Venue") so venue staff can take
+   * the host controls later with the seat's token (the hostUrl).
+   */
+  createVenueRoom({ kind = "venue", title }: { kind?: SessionKind; title?: string } = {}): { room: Room; hostToken: string } {
+    const room = this.create(kind);
+    room.title = title?.trim().slice(0, 60) || undefined;
+    room.setDisplay(getAdminSettings().displayDefaults);
+    const host = room.addHost("Venue");
+    return { room, hostToken: host.token };
   }
 
   get(code: string): Room | undefined {
@@ -67,6 +82,8 @@ export class RoomManager {
     const closed: string[] = [];
     for (const [code, room] of [...this.rooms]) {
       try {
+        // A box's venue room has no host phone; it stays open while a TV shows it.
+        if (cause === "idle" && room.kind === "venue" && room.hasConnectedTable()) continue;
         if (now - room.lastActivityAt > minutes * 60_000 && this.closeRoom(code, reason, cause)) closed.push(code);
       } catch (err) {
         log.error("room", "idle close failed for room", { code, err: String(err) });

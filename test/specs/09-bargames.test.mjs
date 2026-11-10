@@ -10,9 +10,19 @@ import { startServer, setupRoom } from "../harness.mjs";
 const TOKEN = "test-token";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-/** A fake box core: serves the venue context and records every event. */
+const TVS = {
+  enabled: true,
+  pinRequired: true,
+  displays: [
+    { id: "roku:A1", name: "Bar left", busy: false, showingThisGame: false },
+    { id: "roku:B2", name: "Bar right", busy: true, showingThisGame: true, roomCode: "WXYZ" },
+  ],
+};
+
+/** A fake box core: serves the venue context and TVs, records every event and cast. */
 async function fakeCore() {
   const events = [];
+  const casts = [];
   const srv = http.createServer((req, res) => {
     let body = "";
     req.on("data", (d) => (body += d));
@@ -21,6 +31,20 @@ async function fakeCore() {
       if (req.url === "/internal/events") {
         events.push(JSON.parse(body));
         return void res.writeHead(204).end();
+      }
+      if (req.url === "/internal/displays") {
+        res.writeHead(200, { "content-type": "application/json" });
+        return void res.end(JSON.stringify(TVS));
+      }
+      if (req.url === "/internal/cast" || req.url === "/internal/cast/stop") {
+        const b = JSON.parse(body);
+        casts.push({ url: req.url, ...b });
+        res.writeHead(200, { "content-type": "application/json" });
+        if (b.pin !== "4321") return void res.end(JSON.stringify({ ok: false, message: "Wrong TV PIN" }));
+        const results = Object.fromEntries(
+          b.displayIds.map((id) => [id, id === "roku:B2" ? { ok: false, needsCode: true } : { ok: true }]),
+        );
+        return void res.end(JSON.stringify({ ok: true, results }));
       }
       if (req.url === "/internal/venue") {
         res.writeHead(200, { "content-type": "application/json" });
@@ -42,6 +66,7 @@ async function fakeCore() {
   return {
     url: `http://127.0.0.1:${srv.address().port}`,
     events,
+    casts,
     /** Events of one type for one room. */
     of: (type, code) => events.filter((e) => e.type === type && (!code || e.roomCode === code)),
     async waitFor(pred, label, ms = 5000) {
@@ -92,6 +117,18 @@ describe("standalone (no BG_* env)", () => {
       body: JSON.stringify({ command: "start", roomCode: "ABCD" }),
     });
     assert.equal(cmd.status, 401);
+  });
+
+  test("venue TVs: hidden (enabled false) and refused off a box; host only", async () => {
+    const { host, players } = await setupRoom(server, ["Ann"]);
+    assert.deepEqual((await host.ok("listTvs")).tvs, { enabled: false, pinRequired: false, displays: [] });
+    assert.equal((await host.ok("castToTvs", { ids: ["roku:A1"], pin: "1" })).result.ok, false);
+    assert.equal((await host.ok("stopTvs", { ids: ["roku:A1"] })).result.ok, false);
+    for (const ev of ["listTvs", "castToTvs", "stopTvs"]) {
+      const res = ev === "listTvs" ? await players[0].emit(ev) : await players[0].emit(ev, { ids: ["roku:A1"] });
+      assert.equal(res.ok, false, `${ev} from a player`);
+      assert.match(res.error, /only the host/i);
+    }
   });
 
   test("join rate limit still keys on cf-connecting-ip (clientIp), not a spoofed gateway header", async () => {
@@ -243,10 +280,136 @@ describe("on a box", () => {
     assert.ok(!all.includes(ann.token) && !all.includes(ann.socket.id) && !all.includes("127.0.0.1"));
   });
 
+  test("create_room: a venue room with no host phone, driven by commands", async () => {
+    const res = await fetch(`${server.url}/__bargames/command`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${TOKEN}`, "content-type": "application/json" },
+      body: JSON.stringify({ command: "create_room", args: { kind: "venue", purpose: "display", title: "Friday Bingo" } }),
+    });
+    const created = await res.json();
+    assert.equal(created.ok, true, created.message);
+    const { roomCode: code, hostUrl } = created.data;
+    assert.match(code, /^[A-Z]{4}$/);
+    const ev = await core.waitFor((e) => e.type === "room_created" && e.roomCode === code, "room_created");
+    assert.equal(ev.sessionKind, "venue");
+
+    const status = await (await fetch(`${server.url}/__bargames/status`, { headers: { authorization: `Bearer ${TOKEN}` } })).json();
+    const mine = status.rooms.find((r) => r.code === code);
+    assert.equal(mine.kind, "venue");
+    assert.equal(mine.players, 0);
+    assert.equal(mine.hostConnected, false);
+    assert.match(mine.title, /^Friday Bingo · Game 1/);
+
+    // A TV opens the table route; players join by code as usual.
+    const tv = await server.client();
+    assert.equal((await tv.ok("joinRoom", { code, role: "table" })).role, "table");
+    const ann = await server.client();
+    await ann.ok("joinRoom", { code, role: "player", name: "Ann" });
+
+    // Commands run it.
+    assert.equal((await command("start", code)).ok, true);
+    await tv.waitFor((s) => s.phase === "playing", "playing");
+    assert.equal((await command("pause", code)).ok, true);
+    assert.equal((await command("resume", code)).ok, true);
+    assert.equal((await command("next_round", code)).ok, true);
+    await tv.waitFor((s) => s.gameNumber === 2, "game 2");
+
+    // hostUrl's token takes the empty host seat (the staff iPad).
+    const url = new URL(hostUrl, server.url);
+    assert.equal(url.pathname, `/join/${code}`);
+    const ipad = await server.client();
+    const seat = await ipad.ok("resume", { code, token: url.searchParams.get("host") });
+    assert.equal(seat.role, "host");
+    await ipad.ok("callNext");
+
+    assert.equal((await command("end", code)).ok, true);
+    await sleep(100);
+    assert.equal(tv.closedReason, "The host ended this room.");
+    await core.waitFor((e) => e.type === "room_closed" && e.roomCode === code, "room_closed");
+  });
+
+  test("venue TVs: host lists and casts with the PIN; players can't; the PIN is never logged", async () => {
+    const { code, host, players } = await setupRoom(server, ["Ann"]);
+    assert.deepEqual((await host.ok("listTvs")).tvs, TVS);
+    assert.match((await players[0].emit("listTvs")).error, /only the host/i);
+    assert.match((await players[0].emit("castToTvs", { ids: ["roku:A1"], pin: "4321" })).error, /only the host/i);
+
+    const wrong = (await host.ok("castToTvs", { ids: ["roku:A1"], pin: "0000" })).result;
+    assert.deepEqual(wrong, { ok: false, message: "Wrong TV PIN" });
+    const good = (await host.ok("castToTvs", { ids: ["roku:A1", "roku:B2"], pin: "4321" })).result;
+    assert.equal(good.ok, true);
+    assert.equal(good.results["roku:B2"].needsCode, true);
+    assert.deepEqual(core.casts.at(-1), { url: "/internal/cast", roomCode: code, displayIds: ["roku:A1", "roku:B2"], pin: "4321" });
+
+    const stop = (await host.ok("stopTvs", { ids: ["roku:A1"], pin: "4321" })).result;
+    assert.equal(stop.ok, true);
+    assert.deepEqual(core.casts.at(-1), { url: "/internal/cast/stop", displayIds: ["roku:A1"], pin: "4321" });
+
+    // Junk input never reaches the box.
+    const n = core.casts.length;
+    assert.equal((await host.ok("castToTvs", { ids: "roku:A1" })).result.ok, false);
+    assert.equal((await host.ok("castToTvs", {})).result.ok, false);
+    assert.equal(core.casts.length, n);
+    assert.ok(!server.output.includes("4321"), "PIN never logged");
+  });
+
   test("rate limit keys on the gateway's client IP, so one guest can't lock out the bar", async () => {
     const gw = (ip) => ({ "x-bargames-via": "1", "x-bargames-client-ip": ip });
     assert.match((await failJoins(server.url, gw("192.168.1.50"), 21)).error, RATE_LIMITED);
     // Same socket address (the box gateway), different guest: still allowed.
     assert.doesNotMatch((await failJoins(server.url, gw("192.168.1.51"), 1)).error, RATE_LIMITED);
+  });
+});
+
+describe("venue room idle close", () => {
+  let server, core;
+  before(async () => {
+    core = await fakeCore();
+    server = await startServer({
+      BG_GAME_ID: "bingo",
+      BG_CORE_URL: core.url,
+      BG_GAME_TOKEN: TOKEN,
+      ROOM_IDLE_MINUTES: "0.01", // 0.6 s
+      ROOM_SWEEP_INTERVAL_MS: "200",
+    });
+  });
+  after(async () => {
+    await server.stop();
+    await core.close();
+  });
+
+  const createRoom = async () => {
+    const res = await fetch(`${server.url}/__bargames/command`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${TOKEN}`, "content-type": "application/json" },
+      body: JSON.stringify({ command: "create_room", args: { kind: "venue" } }),
+    });
+    return (await res.json()).data.roomCode;
+  };
+  const listed = async (code) => {
+    const status = await (await fetch(`${server.url}/__bargames/status`, { headers: { authorization: `Bearer ${TOKEN}` } })).json();
+    return status.rooms.some((r) => r.code === code);
+  };
+
+  test("stays open while a TV shows it, idle-closes once no TV is connected", async () => {
+    const code = await createRoom();
+    const tv = await server.client();
+    await tv.ok("joinRoom", { code, role: "table" });
+    await sleep(1500);
+    assert.equal(await listed(code), true, "still open with a TV connected");
+    tv.socket.close();
+    await sleep(1500);
+    assert.equal(await listed(code), false, "idle-closed after the TV left");
+    const closed = await core.waitFor((e) => e.type === "room_closed" && e.roomCode === code, "room_closed");
+    assert.equal(closed.data.reason, "idle");
+  });
+
+  test("a patron room with a TV still idle-closes as before", async () => {
+    const { code, host } = await setupRoom(server, []);
+    const tv = await server.client();
+    await tv.ok("joinRoom", { code, role: "table" });
+    await sleep(1500);
+    assert.equal(await listed(code), false);
+    assert.ok(host.closedReason);
   });
 });
