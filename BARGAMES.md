@@ -153,14 +153,38 @@ have nothing to change.
 - **Read-only test: not run.** Docker isn't installed on the dev PC, and I didn't build on
   the production VM. To run it:
   ```bash
-  docker build -t bargames/bingo:dev .
-  docker run --rm --read-only --tmpfs /tmp --cap-drop ALL -v bgtest:/data -e PORT=3002 -p 3002:3002 bargames/bingo:dev
+  docker build -t ghcr.io/thezigpc/bingo:dev .
+  docker run --rm --read-only --tmpfs /tmp --cap-drop ALL -v bgtest:/data -e PORT=3002 -p 3002:3002 ghcr.io/thezigpc/bingo:dev
   ```
 - **Production side effect, handled:** because the image is non-root now,
   `scripts/deploy-prod.sh` does two things on its next run:
   - runs `sudo chown -R 1000:1000 ~/bingo/data` on the VM, because files the old
     root-run image wrote would otherwise block admin saves;
   - ships `vendor/`.
+
+## Image
+
+- **Name:** `ghcr.io/thezigpc/bingo:0.1.0`, the tag equal to `version` in
+  `bargames.json`. `npx bargames validate .` passes (`✓ bingo@0.1.0 (sdk level 3)`), with
+  only the expected warning that the image isn't pinned by digest.
+- **Publishing:** `.github/workflows/publish-image.yml`, copied unchanged from the
+  integration snippets. It builds `linux/amd64` with a plain `docker build .` and pushes
+  to GHCR whenever `bargames.json` changes on `main`. It can also be started from the
+  Actions tab.
+- **Clean-checkout build: Docker not run.** Docker isn't installed on the dev PC. What
+  was checked instead, on a fresh `git clone` of the public repo:
+  - `npm ci`, `npm run build` and `npm prune --omit=dev` succeed. That's the Dockerfile's
+    build, minus the container.
+  - `node server/dist/index.js` serves `/health` and `/__bargames/venue.json`.
+  - The committed `vendor/bargames-sdk-0.1.0.tgz` is present.
+  - `package-lock.json` has the Linux x64 native builds (`@esbuild/linux-x64` and
+    `@rollup/rollup-linux-x64-gnu`).
+  - The Dockerfile takes no build args or secrets.
+  - `.dockerignore` excludes `node_modules`, `dist`, `.env`, `data` and `cloudflared`.
+
+  The workflow's first run is the real `docker build` from a clean checkout.
+- **Workflow run and public package:** pending. They wait for the push (step 10); this
+  section gets updated after the anonymous pull check.
 
 ## Standalone: what changed and how it was verified
 

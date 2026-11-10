@@ -2,7 +2,7 @@
   "id": "bingo",
   "name": "Bingo",
   "version": "0.1.0",
-  "image": "bargames/bingo:0.1.0",
+  "image": "ghcr.io/thezigpc/bingo:0.1.0",
   "port": 3002,
   "sdk": { "version": "0.1.0", "level": 3 },
   "routes": {
