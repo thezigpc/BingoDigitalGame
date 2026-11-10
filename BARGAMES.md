@@ -171,8 +171,11 @@ have nothing to change.
   integration snippets. It builds `linux/amd64` with a plain `docker build .` and pushes
   to GHCR whenever `bargames.json` changes on `main`. It can also be started from the
   Actions tab.
-- **Clean-checkout build: Docker not run.** Docker isn't installed on the dev PC. What
-  was checked instead, on a fresh `git clone` of the public repo:
+- **Clean-checkout build: passed in CI.** The "Publish image" workflow
+  ([run 42907701722](https://github.com/thezigpc/BingoDigitalGame/actions/runs/42907701722),
+  2026-11-10) ran a plain `docker build .` for `linux/amd64` from a fresh checkout and
+  pushed it. Docker isn't installed on the dev PC, so before that push I checked a fresh
+  `git clone` of the public repo by hand:
   - `npm ci`, `npm run build` and `npm prune --omit=dev` succeed. That's the Dockerfile's
     build, minus the container.
   - `node server/dist/index.js` serves `/health` and `/__bargames/venue.json`.
@@ -182,9 +185,12 @@ have nothing to change.
   - The Dockerfile takes no build args or secrets.
   - `.dockerignore` excludes `node_modules`, `dist`, `.env`, `data` and `cloudflared`.
 
-  The workflow's first run is the real `docker build` from a clean checkout.
-- **Workflow run and public package:** pending. They wait for the push (step 10); this
-  section gets updated after the anonymous pull check.
+- **Workflow run and public package: done.** The workflow went green, and the step 10
+  anonymous pull check (`ghcr.io/v2/thezigpc/bingo/manifests/0.1.0` with an anonymous
+  token) returns **200**, so a box can pull it. The package came out public with no
+  manual visibility change, presumably because it's linked to the public repo.
+- **Read-only run: still not tested.** The `docker run --read-only` command above hasn't
+  been run yet, because no Docker host was used for it.
 
 ## Standalone: what changed and how it was verified
 
