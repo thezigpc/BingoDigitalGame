@@ -19,7 +19,9 @@ An npm-workspaces monorepo, the same shape as CAHDigitalGame:
 - `server/src/rooms/Room.ts`: the server-authoritative state machine (`lobby` and
   `playing`). It handles dealing, calling, auto-call, daubing, claims, and per-member
   views. Every room timer goes through `safeTimeout`, which closes only that room if the
-  timer throws. `RoomManager.ts` handles room codes and the idle sweep (default 2 h TTL).
+  timer throws. It implements the game kit's `KitRoom`. `rooms/registry.ts` builds the
+  kit's `RoomRegistry` (room codes, the cap, the idle sweep with a default 2 h TTL, close
+  causes) with Bingo's own options.
 - `server/src/socket/index.ts` is the event wiring. Each intent is
   `on(event, (room, memberId, arg) => ...)`, followed by a broadcast and an ack. Failed
   joins are rate-limited per IP, using `cf-connecting-ip` behind the tunnel. Every
@@ -166,8 +168,11 @@ An npm-workspaces monorepo, the same shape as CAHDigitalGame:
   bearer token (`server/src/admin/`).
   - **Password:** comes from the `ADMIN_PASSWORD` env var, or a one-time setup screen
     that writes a scrypt hash to `DATA_DIR/admin.json`. Whoever completes setup first
-    becomes admin. The scrypt is async and failed logins are throttled per IP (10 per
-    15 min).
+    becomes admin. It's the game kit's admin auth (`saltFormat: "bytes"`, matching every
+    existing admin.json). Standalone there's no per-IP lockout (`failsAllowed: Infinity`:
+    a venue's Wi-Fi shares one IP behind Cloudflare); the kit's global cap and capped
+    delay slow guessing. On a Bar Games box the kit's per-IP lockout (10 per 15 min)
+    applies.
   - **Live room list:** refreshes every 5 s, with a per-room Close and a bulk "close rooms
     idle for more than N minutes".
   - **Auto-close idle time:** `roomIdleMinutes`, 5 min to 7 days, default 120. Saved in
@@ -191,7 +196,7 @@ An npm-workspaces monorepo, the same shape as CAHDigitalGame:
   - On the boards, the skipped rows are dimmed (`.skipped`).
   - It's a host setting, toggled in the lobby settings or next to Auto-call.
 - **Reconnect:** a per-tab session in localStorage. The client re-sends `resume` on
-  **every** socket `connect` (see `client/src/useRoom.ts`), which avoids the
+  **every** socket `connect` (the game kit's `useRoomConnection`, used in `RoomPage`), which avoids the
   CAHDigitalGame reconnect-desync bug. There's a reconnect banner, plus the browser's
   `offline`/`online` events as an early warning. The header has a manual ⟳ button.
 - **Not built yet** (only when asked): 90-ball, Wild Bingo, Hot ball, the audio caller,
@@ -233,6 +238,32 @@ edit anything under GameBroker.
   `ClaimView.reason` and shows on that player's phone. Status lists `pendingClaims`
   (omitted when empty). Test casting with `npx bargames mock-box . --tv-pin 1234` (fake
   TVs) or `--no-cast`.
+- **SDK 0.4.0 and game kit 0.3.1** (2026-11-11, requested by the user):
+  - **The kit** (`vendor/bargames-gamekit-<ver>.tgz`, from the GitHub releases of
+    `thezigpc/gamekit`, source in `C:\CodeProjects\GameKit`) owns Bingo's plumbing:
+    logger, JSON and setting stores, admin auth and router, `RoomRegistry`,
+    `wireBarGames`, `installShutdown`, and on the client the session store (same
+    localStorage keys), socket options, `useRoomConnection` and `ErrorBoundary`. Don't
+    edit the kit from this repo; report gaps to the kit's author (see BARGAMES.md, "Kit
+    requests").
+  - **Box events:** `wireBarGames` emits `room_created` / `room_closed` /
+    `players_changed` from the registry. `Room` calls `onPlayersChanged` (the
+    registry's `notePlayers`) on joins, leaves, kicks and the paper switch, never on
+    reconnects. The box's `end` closes with cause `"admin"` and Bingo's host message.
+  - **Status** is the kit's `overviews()`: Rooms-page fields, `joinPath: /join/<code>`
+    (never for private rooms), and `Room.overviewExtra()` for the title and
+    `pendingClaims`.
+  - **Phone pages** get the staff announcement (`<VenueAnnouncement>` in `main.tsx`),
+    hidden whenever the page is a TV or shared screen: `RoomPage` sets it through
+    `sharedScreen.ts` for a Table or the host's big-screen board.
+  - **"← All games"** (`<BackToGames>`) sits at the bottom of `HomePage` only.
+  - **A box TV** (display-only Table on a box) runs `tableMode` (no pointer, 5% safe
+    margins via `--bg-safe-x/y` on `.tv`, standard reconnecting/closed banner).
+  - **Join links and QR codes** use the SDK's `joinUrl(venue, path)`; identical
+    standalone.
+  - **Verify standalone** by building the previous commit in a worktree and diffing a
+    browser flow against it (scratchpad `e2e-standalone-diff.cjs`); the only expected
+    difference is random card numbers.
 
 ## Lesson: socket.io transports through Cloudflare Tunnel (2026-11-08)
 
