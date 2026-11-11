@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import QRCode from "qrcode";
+import { joinUrl as venueJoinUrl, type VenueContext } from "@bargames/sdk/client";
 import { FREE_INDEX, LETTERS, letterFor, usedColumns, type Mask, type PatternView, type RoomView } from "@bingo/shared";
 
 /** isNew: the ball just drawn, which plays the room's draw animation. */
@@ -224,4 +225,9 @@ export function QrCode({ text, size = 160 }: { text: string; size?: number }) {
   return src ? <img className="qr" src={src} width={size} height={size} alt={`QR code for ${text}`} /> : null;
 }
 
-export const joinUrl = (code: string) => `${window.location.origin}/join/${code}`;
+/**
+ * A room's join link (and QR code). On a Bar Games box it's on the venue's public
+ * address, which a TV opened on an internal address wouldn't know; standalone it's
+ * exactly `${location.origin}/join/${code}`, as before.
+ */
+export const joinUrl = (code: string, venue: VenueContext | null = null) => venueJoinUrl(venue, `/join/${code}`);

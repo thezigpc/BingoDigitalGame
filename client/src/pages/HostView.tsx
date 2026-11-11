@@ -22,6 +22,7 @@ import {
 import type { Act } from "./RoomPage";
 import { RoomDisplayPicker } from "../components/DisplayPicker";
 import { TvsPanel } from "../components/TvsPanel";
+import { useVenue } from "../useVenue";
 
 interface Props {
   view: RoomView;
@@ -404,7 +405,7 @@ function PlayersPanel({ view, act }: { view: RoomView; act: Act }) {
 }
 
 function InvitePanel({ code }: { code: string }) {
-  const url = joinUrl(code);
+  const url = joinUrl(code, useVenue());
   return (
     <section className="panel invite">
       <h2>Invite players</h2>

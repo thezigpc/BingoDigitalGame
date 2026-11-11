@@ -107,7 +107,7 @@ export function TableView({ view, skew, act, viewer = false, onHostControls }: P
     window.confirm("Close this room? Everyone is sent back to the home page and the room code stops working.") &&
     act("closeRoom");
 
-  const url = joinUrl(view.code);
+  const url = joinUrl(view.code, venue);
   const [showMenu, setShowMenu] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
 

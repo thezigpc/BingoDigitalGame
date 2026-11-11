@@ -931,7 +931,8 @@ button.card-cell {
   display: grid;
   grid-template-rows: minmax(0, 40fr) minmax(0, 60fr);
   gap: var(--pad);
-  padding: var(--pad) calc(var(--pad) * 1.5);
+  /* On a Bar Games box TV, tableMode() sets --bg-safe-x/y (5% margins); unset elsewhere, so max() keeps the old padding. */
+  padding: max(var(--pad), var(--bg-safe-y, 0px)) max(calc(var(--pad) * 1.5), var(--bg-safe-x, 0px));
   overflow: hidden;
   position: relative;
 }

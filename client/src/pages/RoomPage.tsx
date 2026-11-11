@@ -1,9 +1,13 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useRoomConnection } from "@bargames/gamekit/client";
+import { isOnBox, tableMode, type TableModeController } from "@bargames/sdk/client";
+import type { RoomView } from "@bingo/shared";
 import { toggleFullscreen } from "../fullscreen";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { call } from "../socket";
-import { clearSession, getBigScreen, setBigScreen } from "../session";
-import { useRoom } from "../useRoom";
+import { call, rawCall, socket } from "../socket";
+import { clearSession, getBigScreen, sessions, setBigScreen, type StoredSession } from "../session";
+import { setSharedScreen } from "../sharedScreen";
+import { useVenue } from "../useVenue";
 import { HostView } from "./HostView";
 import { PlayerView } from "./PlayerView";
 import { TableView } from "./TableView";
@@ -31,7 +35,14 @@ export function RoomPage() {
   const { code = "" } = useParams();
   const navigate = useNavigate();
   const upper = code.toUpperCase();
-  const { view, status, closedReason, skew, reconnect } = useRoom(upper);
+  // The kit's room connection: re-sends `resume` on EVERY socket connect, because
+  // socket.io's automatic reconnect gives the server a brand-new socket with no room
+  // binding (the CAHDigitalGame reconnect-desync bug).
+  const { view, status, closedReason, skew, reconnect } = useRoomConnection<RoomView, StoredSession>(upper, {
+    socket: socket as unknown as Parameters<typeof useRoomConnection>[1]["socket"],
+    call: rawCall,
+    sessions,
+  });
   const { act, toast, setToast } = useAction();
   const [bigScreen, setBig] = useState(() => getBigScreen(upper));
   const showBoard = (on: boolean) => {
@@ -51,6 +62,36 @@ export function RoomPage() {
       delete document.documentElement.dataset.theme;
     };
   }, [theme]);
+
+  // A TV / shared screen (a Table, or the host's own big-screen board): no staff
+  // announcement strip there.
+  const role = view?.you.role;
+  const sharedScreen = role === "table" || (role === "host" && bigScreen);
+  useEffect(() => {
+    setSharedScreen(sharedScreen);
+    return () => setSharedScreen(false);
+  }, [sharedScreen]);
+
+  // Bar Games box TV (a display-only Table on a box): the SDK's tableMode hides the
+  // pointer, keeps the screen awake, sets the 5% safe margins (--bg-safe-x/y, used by
+  // .tv) and shows the standard "Reconnecting…" / "Room closed" banner. Off a box, or
+  // on any screen that can run the game, nothing changes.
+  const venue = useVenue();
+  const boxTv = isOnBox(venue) && role === "table" && !view?.you.canControl;
+  const tm = useRef<TableModeController | null>(null);
+  useEffect(() => {
+    if (!boxTv) return;
+    tm.current = tableMode(venue);
+    return () => {
+      tm.current?.stop();
+      tm.current = null;
+    };
+    // The venue context refreshes every 30 s; tableMode only needs it once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [boxTv]);
+  useEffect(() => {
+    tm.current?.setState(closedReason ? "closed" : status === "offline" ? "reconnecting" : "connected", closedReason ?? undefined);
+  }, [boxTv, status, closedReason]);
 
   if (closedReason) {
     return (
@@ -74,7 +115,6 @@ export function RoomPage() {
     );
   }
 
-  const role = view.you.role;
   // Host showing the board on their own screen (iPad/laptop cast to a TV).
   const hostBoard = role === "host" && bigScreen;
   const fullScreenBoard = role === "table" || hostBoard;
@@ -89,7 +129,7 @@ export function RoomPage() {
 
   return (
     <div className={`room role-${role}`} data-anim={view.settings.ballAnimation}>
-      {status !== "online" && (
+      {status !== "online" && !boxTv && (
         <div className={`banner ${fullScreenBoard ? "banner-float" : ""}`} role="status">
           {status === "offline" ? "Connection lost. Reconnecting…" : "Connecting…"}
         </div>

@@ -1,15 +1,18 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { BackToGames } from "@bargames/gamekit/client";
 import type { CardMode, JoinResult } from "@bingo/shared";
 import { call } from "../socket";
 import { lastName, loadSession, rememberName, saveSession, setBigScreen, getDisplayDefault } from "../session";
 import { useGameName } from "../useGameName";
+import { useVenue } from "../useVenue";
 
 export function HomePage() {
   const navigate = useNavigate();
   const params = useParams();
   const [search] = useSearchParams();
   const gameName = useGameName();
+  const venue = useVenue();
   const [code, setCode] = useState((params.code ?? "").toUpperCase());
   const [name, setName] = useState(lastName());
   const [busy, setBusy] = useState(false);
@@ -197,6 +200,11 @@ export function HomePage() {
           Admin
         </Link>
       </footer>
+
+      {/* Bar Games: back to the venue's games list. Landing page only (never in a room
+          or on a TV, so not while a ?as=table / ?host= link is about to open the room).
+          Renders nothing off a box. */}
+      {!search.get("as") && !search.get("host") && <BackToGames ctx={venue} />}
     </main>
   );
 }
