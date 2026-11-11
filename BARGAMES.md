@@ -370,7 +370,11 @@ have nothing to change.
   `npx bargames validate .` passes (`✓ bingo@0.3.0 (sdk level 3)`), with only the
   expected warning that the image isn't pinned by digest. 0.1.0 and 0.2.1 are published
   and left alone.
-- **0.3.0: not published yet.** It publishes when `main` is pushed.
+- **0.3.0: published.** The "Publish image" workflow
+  ([run 43109672367](https://github.com/thezigpc/BingoDigitalGame/actions/runs/43109672367),
+  2026-11-11) went green on the new action versions, with no Node 20 warning. That's the
+  clean-checkout `docker build .` for `linux/amd64`. The step 10 anonymous pull check on
+  `ghcr.io/v2/thezigpc/bingo/manifests/0.3.0` returns **200**.
 - **Workflow:** `.github/workflows/publish-image.yml` is again a byte-identical copy of
   the integration snippet, which now uses `actions/checkout@v7`, `docker/login-action@v4`,
   `docker/setup-buildx-action@v4` and `docker/build-push-action@v7` (all four tags
