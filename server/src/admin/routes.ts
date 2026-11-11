@@ -2,7 +2,7 @@ import express, { type Request, type Response, type NextFunction } from "express
 import type { AdminOverview, AdminSettings } from "@bingo/shared";
 import { ADMIN_CLOSE_REASON, type RoomManager } from "../rooms/RoomManager.js";
 import { clientIp } from "../bargames.js";
-import { log } from "../util/logger.js";
+import { log } from "@bargames/gamekit/server";
 import { isValidSession, login, loginBlocked, logout, setupNeeded, setupPassword } from "./auth.js";
 import { getAdminSettings, updateAdminSettings } from "./settings.js";
 

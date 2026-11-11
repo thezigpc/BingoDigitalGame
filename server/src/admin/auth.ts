@@ -1,8 +1,7 @@
 import { randomBytes, scrypt as scryptCb, timingSafeEqual } from "crypto";
 import { promisify } from "util";
-import { ADMIN_PASSWORD } from "../config.js";
-import { log } from "../util/logger.js";
-import { readJson, writeJson } from "./store.js";
+import { ADMIN_PASSWORD, store } from "../config.js";
+import { log } from "@bargames/gamekit/server";
 
 // The admin password is one of two things, checked in this order:
 //  1. the ADMIN_PASSWORD env var (always wins if set), or
@@ -25,7 +24,7 @@ let stored: HashFile | null = null;
 const sessions = new Map<string, number>(); // token -> expiry
 
 export async function initAdminAuth(): Promise<void> {
-  stored = await readJson<HashFile>(FILE);
+  stored = await store.read<HashFile>(FILE);
 }
 
 export function setupNeeded(): boolean {
@@ -60,7 +59,7 @@ export async function setupPassword(password: string): Promise<string> {
   // Re-check after the await: two setups racing must not both win.
   if (!setupNeeded()) throw new Error("Admin is already set up.");
   stored = { salt: salt.toString("hex"), hash: hash.toString("hex") };
-  await writeJson(FILE, stored);
+  await store.write(FILE, stored);
   log.info("admin", "admin password set via setup screen");
   return newSession();
 }

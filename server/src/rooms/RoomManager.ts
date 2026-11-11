@@ -3,7 +3,7 @@ import type { AdminRoomSummary } from "@bingo/shared";
 import { MAX_ROOMS, ROOM_SWEEP_INTERVAL_MS } from "../config.js";
 import { getAdminSettings } from "../admin/settings.js";
 import { bg } from "../bargames.js";
-import { log } from "../util/logger.js";
+import { log } from "@bargames/gamekit/server";
 import { GameError } from "./errors.js";
 import { newRoomCode } from "./ids.js";
 import { Room, type RoomTransport } from "./Room.js";

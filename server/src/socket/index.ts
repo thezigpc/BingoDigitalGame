@@ -14,7 +14,7 @@ import { clientIp, HOST_CLOSE_REASON, tvs } from "../bargames.js";
 import { GameError } from "../rooms/errors.js";
 import type { Member, Room } from "../rooms/Room.js";
 import type { RoomManager } from "../rooms/RoomManager.js";
-import { log } from "../util/logger.js";
+import { log } from "@bargames/gamekit/server";
 
 interface SocketData {
   code?: string;

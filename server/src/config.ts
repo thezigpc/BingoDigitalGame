@@ -1,4 +1,5 @@
 import path from "path";
+import { createJsonStore } from "@bargames/gamekit/server";
 import { fileURLToPath } from "url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -15,6 +16,8 @@ export const CLIENT_DIST_PATH = process.env.CLIENT_DIST_PATH ?? path.resolve(her
  * code so deploys never touch it; deploy-dev.ps1 excludes it from its mirror.
  */
 export const DATA_DIR = process.env.DATA_DIR ?? path.resolve(here, "../../data");
+/** JSON files in DATA_DIR (admin password hash, admin settings). */
+export const store = createJsonStore(DATA_DIR);
 /**
  * Default for the admin "close rooms after N minutes idle" setting, used
  * until an admin saves one. The live value comes from admin/settings.ts.

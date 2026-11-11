@@ -25,7 +25,7 @@ import {
 import type { SessionKind } from "@bargames/sdk";
 import { bg } from "../bargames.js";
 import { MAX_PLAYERS_PER_ROOM, MAX_TABLES_PER_ROOM } from "../config.js";
-import { log } from "../util/logger.js";
+import { log } from "@bargames/gamekit/server";
 import { GameError } from "./errors.js";
 import { cryptoRand, newCardSerial, newId, newToken } from "./ids.js";
 

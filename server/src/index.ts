@@ -11,7 +11,7 @@ import { adminRouter } from "./admin/routes.js";
 import { initAdminSettings } from "./admin/settings.js";
 import { registerSocketHandlers, type IO } from "./socket/index.js";
 import { bg, displayName, registerBarGames } from "./bargames.js";
-import { log } from "./util/logger.js";
+import { log } from "@bargames/gamekit/server";
 
 await initAdminSettings();
 await initAdminAuth();
