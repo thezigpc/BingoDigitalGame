@@ -2,7 +2,7 @@ import { adminRouter as kitAdminRouter, createAdminAuth, log } from "@bargames/g
 import type express from "express";
 import type { AdminOverview, AdminSettings } from "@bingo/shared";
 import { ADMIN_PASSWORD, store } from "../config.js";
-import { ADMIN_CLOSE_REASON, type RoomManager } from "../rooms/RoomManager.js";
+import { ADMIN_CLOSE_REASON, listRooms, type Rooms } from "../rooms/registry.js";
 import { clientIp, onBox } from "../bargames.js";
 import { getAdminSettings, updateAdminSettings } from "./settings.js";
 
@@ -24,12 +24,12 @@ export const adminAuth = createAdminAuth({
 });
 
 /** /api/admin/*: the kit's status, setup, login and logout, then Bingo's room list, close and settings. */
-export function adminRouter(rooms: RoomManager): express.Router {
+export function adminRouter(rooms: Rooms): express.Router {
   const r = kitAdminRouter({ auth: adminAuth, clientIp });
 
   // Everything below needs a signed-in admin (the kit's router checks it).
   r.get("/overview", (_req, res) => {
-    const body: AdminOverview = { rooms: rooms.list(), settings: getAdminSettings(), serverTime: Date.now() };
+    const body: AdminOverview = { rooms: listRooms(rooms), settings: getAdminSettings(), serverTime: Date.now() };
     res.json(body);
   });
 
@@ -56,7 +56,7 @@ export function adminRouter(rooms: RoomManager): express.Router {
       const settings = await updateAdminSettings((req.body ?? {}) as Partial<AdminSettings>);
       log.info("admin", "settings updated", { roomIdleMinutes: settings.roomIdleMinutes });
       // Apply the new idle time right away rather than at the next sweep.
-      rooms.sweepIdleRooms();
+      rooms.sweepIdle();
       res.json({ ok: true, settings });
     } catch (err) {
       res.status(400).json({ ok: false, error: err instanceof Error ? err.message : "Couldn't save." });

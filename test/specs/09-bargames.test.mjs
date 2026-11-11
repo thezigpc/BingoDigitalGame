@@ -217,17 +217,32 @@ describe("on a box", () => {
     const status = await (await fetch(`${server.url}/__bargames/status`, { headers: { authorization: `Bearer ${TOKEN}` } })).json();
     const mine = status.rooms.find((r) => r.code === code);
     assert.deepEqual(
-      { ...mine, title: undefined },
-      { code, kind: "patron", players: 2, phase: "lobby", title: undefined, hostConnected: true },
+      { ...mine, title: undefined, createdAt: undefined, lastActivityAt: undefined },
+      {
+        code,
+        kind: "patron",
+        players: 2,
+        phase: "lobby",
+        round: 1,
+        title: undefined,
+        hostConnected: true,
+        hostName: "Host",
+        tables: 1,
+        maxPlayers: 100,
+        createdAt: undefined,
+        lastActivityAt: undefined,
+        joinPath: `/join/${code}`,
+      },
     );
     assert.match(mine.title, /Game 1/);
+    assert.ok(Date.parse(mine.createdAt) <= Date.parse(mine.lastActivityAt), "ISO times");
 
     assert.equal((await command("end", code)).ok, true);
     await sleep(100);
     assert.equal(host.closedReason, "The host ended this room.");
     assert.equal(players[0].closedReason, "The host ended this room.");
     assert.equal((await command("end", code)).ok, false, "already gone");
-    await core.waitFor((e) => e.type === "room_closed" && e.roomCode === code && e.data.reason === "host", "room_closed");
+    await core.waitFor((e) => e.type === "room_closed" && e.roomCode === code && e.data.reason === "admin", "room_closed");
   });
 
   test("events: created, players (debounced), round, claim, winner, round end", async () => {
@@ -328,6 +343,27 @@ describe("on a box", () => {
     await core.waitFor((e) => e.type === "room_closed" && e.roomCode === code, "room_closed");
   });
 
+  test("joinPath: venue and patron rooms get Bingo's join route; a private room never does", async () => {
+    const make = async (kind) => {
+      const res = await fetch(`${server.url}/__bargames/command`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${TOKEN}`, "content-type": "application/json" },
+        body: JSON.stringify({ command: "create_room", args: { kind } }),
+      });
+      return (await res.json()).data.roomCode;
+    };
+    const venue = await make("venue");
+    const priv = await make("private");
+    const { code: patron } = await setupRoom(server, []);
+    const status = await (await fetch(`${server.url}/__bargames/status`, { headers: { authorization: `Bearer ${TOKEN}` } })).json();
+    const row = (code) => status.rooms.find((r) => r.code === code);
+    assert.equal(row(venue).joinPath, `/join/${venue}`);
+    assert.equal(row(patron).joinPath, `/join/${patron}`);
+    assert.equal(row(priv).kind, "private");
+    assert.equal("joinPath" in row(priv), false, "never for a private room");
+    for (const code of [venue, priv]) await command("end", code);
+  });
+
   test("venue TVs: host lists and casts with the PIN; players can't; the PIN is never logged", async () => {
     const { code, host, players } = await setupRoom(server, ["Ann"]);
     assert.deepEqual((await host.ok("listTvs")).tvs, TVS);
@@ -405,14 +441,14 @@ describe("on a box", () => {
     assert.equal(win.data.name, "Ann");
     const again = await cmd("reject_claim", code, { claimId: pending[0].id });
     assert.equal(again.ok, false, "already decided");
-    assert.match(again.message, /already confirmed/);
+    assert.match(again.message, /isn't waiting/);
     assert.deepEqual((await statusOf()).pendingClaims.map((c) => c.player), ["Bo"]);
 
     // reject_claim by id, with a reason the player sees.
     assert.equal((await cmd("reject_claim", code, { claimId: pending[1].id, reason: "Card was checked: not this pattern" })).ok, true);
     const boView = await bo.waitFor((s) => s.claims.find((c) => c.id === pending[1].id)?.status === "dismissed", "Bo rejected");
     assert.equal(boView.claims.find((c) => c.id === pending[1].id).reason, "Card was checked: not this pattern");
-    assert.match((await cmd("confirm_claim", code, { claimId: pending[1].id })).message, /already turned down/);
+    assert.match((await cmd("confirm_claim", code, { claimId: pending[1].id })).message, /isn't waiting/);
     assert.equal((await statusOf()).pendingClaims, undefined, "nothing waiting");
     assert.equal((await cmd("confirm_claim", code)).ok, false, "omitted claimId, nothing waiting");
   });

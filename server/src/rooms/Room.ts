@@ -22,12 +22,21 @@ import {
   type RoomSettings,
   type RoomView,
 } from "@bingo/shared";
-import type { SessionKind } from "@bargames/sdk";
+import {
+  cryptoRand,
+  log,
+  newId,
+  newSerial,
+  newToken,
+  type CloseCause,
+  type KitRoom,
+  type PendingClaim,
+  type RoomOverview,
+  type SessionKind,
+} from "@bargames/gamekit/server";
 import { bg } from "../bargames.js";
 import { MAX_PLAYERS_PER_ROOM, MAX_TABLES_PER_ROOM } from "../config.js";
-import { log } from "@bargames/gamekit/server";
 import { GameError } from "./errors.js";
-import { cryptoRand, newCardSerial, newId, newToken } from "./ids.js";
 
 interface Card {
   id: string;
@@ -56,10 +65,8 @@ export interface RoomTransport {
 
 const FALSE_CLAIM_COOLDOWN_MS = 3000;
 const MAX_CLAIMS_KEPT = 30;
-/** Bar Games players_changed: at most one event per room per this long. */
-const PLAYERS_EVENT_DEBOUNCE_MS = 2000;
 
-export class Room {
+export class Room implements KitRoom {
   readonly members = new Map<string, Member>();
   hostId = "";
   phase: Phase = "lobby";
@@ -85,19 +92,22 @@ export class Room {
    * for the box's create_room. Used in events and status, and venue rooms
    * aren't idle-closed while a TV shows them.
    */
-  kind: SessionKind = "patron";
+  kind: SessionKind;
   /** Optional title from the box's create_room (status only). */
   title?: string;
-  private playersEventTimer: NodeJS.Timeout | null = null;
-  private playersReported = 0;
 
-  /** Set by RoomManager: closes just this room if one of its timers throws. */
+  /** Set by the room registry: closes just this room if one of its timers throws. */
   onFatalError: (err: unknown) => void = () => {};
+  /** Set by the room registry: a debounced Bar Games players_changed (joins, leaves, kicks). */
+  onPlayersChanged: () => void = () => {};
 
   constructor(
     readonly code: string,
     private readonly transport: RoomTransport,
-  ) {}
+    kind: SessionKind = "patron",
+  ) {
+    this.kind = kind;
+  }
 
   // ------------------------------------------------------------- members
 
@@ -159,9 +169,49 @@ export class Room {
     this.members.get(memberId)?.socketIds.delete(socketId);
   }
 
-  hasConnectedTable(): boolean {
-    for (const m of this.members.values()) if (m.role === "table" && m.socketIds.size > 0) return true;
-    return false;
+  // ---------------------------------------------- the game kit's KitRoom
+
+  /** Seated players only (not tables or paper-mode viewers). */
+  playerCount(): number {
+    return this.players().length;
+  }
+
+  /** Table (TV) clients connected right now. A venue room isn't idle-closed while > 0. */
+  tableCount(): number {
+    let n = 0;
+    for (const m of this.members.values()) if (m.role === "table" && m.socketIds.size > 0) n++;
+    return n;
+  }
+
+  round(): number {
+    return this.gameNumber;
+  }
+
+  hostConnected(): boolean {
+    return (this.members.get(this.hostId)?.socketIds.size ?? 0) > 0;
+  }
+
+  hostName(): string | undefined {
+    return this.members.get(this.hostId)?.name;
+  }
+
+  maxPlayers(): number {
+    return MAX_PLAYERS_PER_ROOM;
+  }
+
+  /** Status title and the claims waiting for a decision, for the Bar Games box. */
+  overviewExtra(): Partial<RoomOverview> {
+    const pattern = this.pattern().name;
+    const pendingClaims: PendingClaim[] = this.waitingClaims().map(({ claim, at }) => ({
+      id: claim.id,
+      player: claim.playerName,
+      detail: `${pattern} on card ${claim.cardId}, after ${claim.callCount} calls`,
+      at: new Date(at).toISOString(),
+    }));
+    return {
+      title: `${this.title ? `${this.title} · ` : ""}Game ${this.gameNumber}: ${pattern}`,
+      pendingClaims,
+    };
   }
 
   removeMember(memberId: string, reason: string): void {
@@ -172,23 +222,12 @@ export class Room {
     if (m.role === "player") this.playersChanged();
   }
 
-  /**
-   * Bar Games players_changed, debounced to one event per room every 2 s and
-   * only when the count really moved (reconnects never change it).
-   */
+  /** Bar Games players_changed: the registry debounces it (never for reconnects). */
   private playersChanged(): void {
-    if (!bg.connected || this.playersEventTimer || this.closed) return;
-    this.playersEventTimer = setTimeout(() => {
-      this.playersEventTimer = null;
-      const players = this.players().length;
-      if (this.closed || players === this.playersReported) return;
-      this.playersReported = players;
-      this.emit("players_changed", { players });
-    }, PLAYERS_EVENT_DEBOUNCE_MS);
-    this.playersEventTimer.unref();
+    if (!this.closed) this.onPlayersChanged();
   }
 
-  private emit(type: "players_changed" | "round_started" | "round_ended" | "claim_pending" | "winner", data: Record<string, unknown>): void {
+  private emit(type: "round_started" | "round_ended" | "claim_pending" | "winner", data: Record<string, unknown>): void {
     bg.emit({ type, roomCode: this.code, sessionKind: this.kind, data });
   }
 
@@ -227,7 +266,7 @@ export class Room {
 
   private dealCards(m: Member): void {
     m.cards = Array.from({ length: this.settings.cardsPerPlayer }, () => ({
-      id: newCardSerial(),
+      id: newSerial(),
       cells: generateCardCells(cryptoRand),
       daubs: new Set<number>(),
     }));
@@ -479,7 +518,7 @@ export class Room {
   }
 
   /** Valid claims waiting for the host, oldest first, with when each was made. */
-  pendingClaims(): { claim: ClaimView; at: number }[] {
+  waitingClaims(): { claim: ClaimView; at: number }[] {
     return this.claims
       .filter((c) => c.status === "pending")
       .map((claim) => ({ claim, at: this.claimAt.get(claim) ?? this.createdAt }));
@@ -600,11 +639,10 @@ export class Room {
     };
   }
 
-  close(reason: string): void {
+  close(reason: string, _cause?: CloseCause): void {
     if (this.closed) return;
     this.closed = true;
     this.clearAutoTimer();
-    if (this.playersEventTimer) clearTimeout(this.playersEventTimer);
     for (const m of this.members.values()) for (const sid of m.socketIds) this.transport.sendClosed(sid, reason);
   }
 }

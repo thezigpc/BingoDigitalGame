@@ -3,12 +3,12 @@
 // Off a box (no BG_CORE_URL / BG_GAME_TOKEN env) every call here is a no-op and
 // the game behaves exactly as before: that's guaranteed by the SDK.
 
-import { createBarGames, type ClaimArgs, type CommandResult, type GameStatus } from "@bargames/sdk/server";
+import { wireBarGames } from "@bargames/gamekit/bargames";
+import { createBarGames, type CommandResult } from "@bargames/sdk/server";
 import type { IncomingMessage } from "node:http";
 import { DEFAULT_GAME_NAME } from "@bingo/shared";
-import { GameError } from "./rooms/errors.js";
+import { createVenueRoom, type Rooms } from "./rooms/registry.js";
 import type { Room } from "./rooms/Room.js";
-import type { RoomManager } from "./rooms/RoomManager.js";
 
 export const bg = createBarGames({
   gameId: "bingo",
@@ -59,106 +59,51 @@ export const tvs = {
 export const HOST_CLOSE_REASON = "The host ended this room.";
 
 /**
- * Level 3: the venue's iPad (or a schedule / Home Assistant) acting as the
- * room's host. Each command runs the same Room method the host's socket intent
- * does, then broadcasts, exactly like the socket `on(...)` wrapper. Refusals
- * come back as { ok: false, message } with the game's own error text; nothing
- * here throws.
+ * Level 3, through the game kit's wireBarGames: status (every room's overview), the
+ * room_created / room_closed / players_changed events, "end", create_room and the claim
+ * commands. Each command runs the same Room method the host's socket intent does, then
+ * broadcasts, exactly like the socket `on(...)` wrapper. Refusals come back as
+ * { ok: false, message } with the game's own text.
  */
-export function registerBarGames(rooms: RoomManager): void {
+export function registerBarGames(rooms: Rooms): void {
   /** fn returns a refusal message, or runs the host's Room method and returns nothing. */
   const asHost =
-    (fn: (room: Room, args: unknown) => string | void) =>
-    ({ roomCode, args }: { roomCode?: string; args?: unknown }): CommandResult => {
-      const room = roomCode ? rooms.get(roomCode) : undefined;
-      if (!room) return { ok: false, message: "No room with that code." };
-      try {
-        const refused = fn(room, args);
-        if (refused) return { ok: false, message: refused };
-        room.broadcast();
-        return { ok: true };
-      } catch (err) {
-        return { ok: false, message: err instanceof GameError ? err.message : "That didn't work." };
-      }
+    (fn: (room: Room) => string | void) =>
+    (room: Room): CommandResult => {
+      const refused = fn(room);
+      if (refused) return { ok: false, message: refused };
+      room.broadcast();
+      return { ok: true };
     };
   const NOT_PLAYING = "No game is being played in this room.";
 
-  bg.onCommand(
-    "start",
-    asHost((room) => (room.phase !== "lobby" ? "The game has already started." : room.startGame())),
-  );
-  bg.onCommand(
-    "pause",
-    asHost((room) =>
-      room.phase !== "playing" ? NOT_PLAYING : room.paused ? "The game is already paused." : room.setPaused(true),
-    ),
-  );
-  bg.onCommand(
-    "resume",
-    asHost((room) =>
-      room.phase !== "playing" ? NOT_PLAYING : !room.paused ? "The game isn't paused." : room.setPaused(false),
-    ),
-  );
-  // The host's "New game": ends the current game, then deals and starts the next one.
-  bg.onCommand("next_round", asHost((room) => (room.phase !== "playing" ? NOT_PLAYING : room.newGame(true))));
-  // Staff confirm or turn down a BINGO from the iPad: the host's Confirm winner /
-  // Dismiss buttons (room.resolveClaim). No claimId: the oldest one waiting.
-  const resolveClaim = (confirm: boolean) =>
-    asHost((room, args) => {
-      const { claimId, reason } = (args ?? {}) as ClaimArgs;
-      const claim =
-        claimId === undefined || claimId === null || claimId === ""
-          ? room.pendingClaims()[0]?.claim
-          : room.claims.find((c) => c.id === String(claimId));
-      if (!claim) return claimId ? "That BINGO claim doesn't exist." : "No BINGO claim is waiting in this room.";
-      if (claim.status === "invalid") return "That claim wasn't a valid BINGO, so there's nothing to decide.";
-      if (claim.status !== "pending") {
-        return `That BINGO claim was already ${claim.status === "confirmed" ? "confirmed" : "turned down"}.`;
-      }
-      room.resolveClaim(claim.id, confirm, confirm || typeof reason !== "string" ? undefined : reason);
-    });
-  bg.onCommand("confirm_claim", resolveClaim(true));
-  bg.onCommand("reject_claim", resolveClaim(false));
-
-  bg.onCommand("end", ({ roomCode }) => {
-    const room = roomCode ? rooms.get(roomCode) : undefined;
-    if (!room) return { ok: false, message: "No room with that code." };
-    rooms.closeRoom(room.code, HOST_CLOSE_REASON, "host");
-    return { ok: true };
+  wireBarGames(bg, rooms, {
+    // The box starts a room for its TVs (iPad: "Put a game on the TVs > New room").
+    // No host phone: the commands drive it, and hostUrl opens the empty host seat on
+    // the staff iPad. Opening /join/{code}?as=table casts it.
+    createVenueRoom: ({ kind, title }) => {
+      const { room, hostToken } = createVenueRoom(rooms, kind ?? "venue", title); // GameError("ROOM_FULL") at the cap
+      room.broadcast();
+      return { room, hostUrl: `/join/${room.code}?host=${encodeURIComponent(hostToken)}` };
+    },
+    commands: {
+      start: asHost((room) => (room.phase !== "lobby" ? "The game has already started." : room.startGame())),
+      pause: asHost((room) =>
+        room.phase !== "playing" ? NOT_PLAYING : room.paused ? "The game is already paused." : room.setPaused(true),
+      ),
+      resume: asHost((room) =>
+        room.phase !== "playing" ? NOT_PLAYING : !room.paused ? "The game isn't paused." : room.setPaused(false),
+      ),
+      // The host's "New game": ends the current game, then deals and starts the next one.
+      next_round: asHost((room) => (room.phase !== "playing" ? NOT_PLAYING : room.newGame(true))),
+    },
+    // Staff confirm or turn down a BINGO from the iPad: the host's Confirm winner /
+    // Dismiss buttons. The kit picks the oldest waiting claim when no claimId is given.
+    claims: {
+      confirm: (room, id) => asHost((r) => r.resolveClaim(id, true))(room),
+      reject: (room, id, reason) => asHost((r) => r.resolveClaim(id, false, reason))(room),
+    },
+    // "end" closes the room like the host's own Close room, with the same message.
+    endReason: HOST_CLOSE_REASON,
   });
-
-  // The box starts a room for its TVs (iPad: "Put a game on the TVs > New room").
-  // No host phone: the commands above drive it, and hostUrl opens the empty
-  // host seat on the staff iPad. Opening /join/{code}?as=table casts it.
-  bg.onCreateRoom(({ kind, title }) => {
-    const { room, hostToken } = rooms.createVenueRoom({ kind, title }); // throws GameError("ROOM_FULL") at the cap
-    room.broadcast();
-    return { roomCode: room.code, hostUrl: `/join/${room.code}?host=${encodeURIComponent(hostToken)}` };
-  });
-
-  bg.setStatusProvider(
-    (): GameStatus => ({
-      rooms: rooms.all().map((r) => {
-        const s = r.summary();
-        const pending = r.pendingClaims();
-        return {
-          code: r.code,
-          kind: r.kind,
-          players: s.players,
-          phase: r.phase,
-          title: `${r.title ? `${r.title} · ` : ""}Game ${r.gameNumber}: ${r.pattern().name}`,
-          hostConnected: s.hostConnected,
-          // Left out when nothing is waiting.
-          pendingClaims: pending.length === 0 ? undefined : pending.map(({ claim, at }) => ({
-            id: claim.id,
-            player: claim.playerName,
-            detail: `${r.pattern().name} on card ${claim.cardId}, after ${claim.callCount} calls`,
-            at: new Date(at).toISOString(),
-          })),
-        };
-      }),
-    }),
-  );
 }
-
-export type { GameStatus };

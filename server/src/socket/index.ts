@@ -13,7 +13,7 @@ import { getAdminSettings } from "../admin/settings.js";
 import { clientIp, HOST_CLOSE_REASON, tvs } from "../bargames.js";
 import { GameError } from "../rooms/errors.js";
 import type { Member, Room } from "../rooms/Room.js";
-import type { RoomManager } from "../rooms/RoomManager.js";
+import type { Rooms } from "../rooms/registry.js";
 import { log } from "@bargames/gamekit/server";
 
 interface SocketData {
@@ -48,7 +48,7 @@ setInterval(() => {
 }, JOIN_WINDOW_MS).unref();
 
 
-export function registerSocketHandlers(io: IO, rooms: RoomManager): void {
+export function registerSocketHandlers(io: IO, rooms: Rooms): void {
   io.on("connection", (socket: S) => {
     // Behind Cloudflare Tunnel every connection arrives from localhost, so the
     // real address is cf-connecting-ip; on a Bar Games box it's the gateway's

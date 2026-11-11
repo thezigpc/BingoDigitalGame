@@ -5,12 +5,12 @@ import express from "express";
 import { Server } from "socket.io";
 import { DEFAULT_GAME_NAME } from "@bingo/shared";
 import { CLIENT_DIST_PATH, PORT } from "./config.js";
-import { RoomManager } from "./rooms/RoomManager.js";
+import { createRooms } from "./rooms/registry.js";
 import { adminAuth, adminRouter } from "./admin/routes.js";
 import { initAdminSettings } from "./admin/settings.js";
 import { registerSocketHandlers, type IO } from "./socket/index.js";
 import { bg, displayName, registerBarGames } from "./bargames.js";
-import { log } from "@bargames/gamekit/server";
+import { installShutdown, log, SOCKET_SERVER_OPTIONS } from "@bargames/gamekit/server";
 
 await initAdminSettings();
 await adminAuth.init();
@@ -18,13 +18,12 @@ await adminAuth.init();
 const app = express();
 const httpServer = createServer(app);
 const io: IO = new Server(httpServer, {
-  // Spot half-open mobile connections in ~15s instead of ~45s.
-  pingInterval: 10_000,
-  pingTimeout: 5_000,
+  // Spot half-open mobile connections in ~15s instead of ~45s (10 s ping, 5 s timeout).
+  ...SOCKET_SERVER_OPTIONS,
   maxHttpBufferSize: 64 * 1024,
 });
 
-const rooms = new RoomManager({
+const rooms = createRooms({
   sendState: (socketId, view) => io.to(socketId).emit("state", view),
   sendClosed: (socketId, reason) => io.to(socketId).emit("closed", { reason }),
 });
@@ -56,27 +55,12 @@ httpServer.listen(PORT, () => {
   log.info("boot", "listening", { port: PORT });
 });
 
-let shuttingDown = false;
-function shutdown(reason: string, exitCode: number): void {
-  if (shuttingDown) return;
-  shuttingDown = true;
-  log.info("boot", "shutting down", { reason });
-  rooms.closeAll(
-    exitCode === 0
-      ? "The server is restarting for an update. Please rejoin in a minute."
-      : "The server hit an unexpected error and had to restart. Please rejoin in a minute.",
-  );
-  void bg.flush(); // Bar Games: send the room_closed events (no-op off a box)
-  // Give socket.io a moment to flush the "closed" messages.
-  setTimeout(() => process.exit(exitCode), 500).unref();
-}
-process.on("SIGINT", () => shutdown("SIGINT", 0));
-process.on("SIGTERM", () => shutdown("SIGTERM", 0));
-process.on("uncaughtException", (err) => {
-  log.error("boot", "uncaught exception", { err: String(err?.stack ?? err) });
-  shutdown("uncaughtException", 1);
-});
-process.on("unhandledRejection", (err) => {
-  log.error("boot", "unhandled rejection", { err: String(err) });
-  shutdown("unhandledRejection", 1);
+// SIGTERM/SIGINT (deploys) and crashes: tell every room why, flush the Bar Games
+// room_closed events, give socket.io a moment to deliver, then exit.
+installShutdown(rooms, {
+  restartReason: "The server is restarting for an update. Please rejoin in a minute.",
+  crashReason: "The server hit an unexpected error and had to restart. Please rejoin in a minute.",
+  drainMs: 500,
+  flush: () => bg.flush(),
+  beforeExit: () => void io.close(),
 });
