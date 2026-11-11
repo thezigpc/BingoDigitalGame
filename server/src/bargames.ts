@@ -3,7 +3,7 @@
 // Off a box (no BG_CORE_URL / BG_GAME_TOKEN env) every call here is a no-op and
 // the game behaves exactly as before: that's guaranteed by the SDK.
 
-import { createBarGames, type CommandResult, type GameStatus } from "@bargames/sdk/server";
+import { createBarGames, type ClaimArgs, type CommandResult, type GameStatus } from "@bargames/sdk/server";
 import type { IncomingMessage } from "node:http";
 import { DEFAULT_GAME_NAME } from "@bingo/shared";
 import { GameError } from "./rooms/errors.js";
@@ -68,12 +68,12 @@ export const HOST_CLOSE_REASON = "The host ended this room.";
 export function registerBarGames(rooms: RoomManager): void {
   /** fn returns a refusal message, or runs the host's Room method and returns nothing. */
   const asHost =
-    (fn: (room: Room) => string | void) =>
-    ({ roomCode }: { roomCode?: string }): CommandResult => {
+    (fn: (room: Room, args: unknown) => string | void) =>
+    ({ roomCode, args }: { roomCode?: string; args?: unknown }): CommandResult => {
       const room = roomCode ? rooms.get(roomCode) : undefined;
       if (!room) return { ok: false, message: "No room with that code." };
       try {
-        const refused = fn(room);
+        const refused = fn(room, args);
         if (refused) return { ok: false, message: refused };
         room.broadcast();
         return { ok: true };
@@ -101,6 +101,25 @@ export function registerBarGames(rooms: RoomManager): void {
   );
   // The host's "New game": ends the current game, then deals and starts the next one.
   bg.onCommand("next_round", asHost((room) => (room.phase !== "playing" ? NOT_PLAYING : room.newGame(true))));
+  // Staff confirm or turn down a BINGO from the iPad: the host's Confirm winner /
+  // Dismiss buttons (room.resolveClaim). No claimId: the oldest one waiting.
+  const resolveClaim = (confirm: boolean) =>
+    asHost((room, args) => {
+      const { claimId, reason } = (args ?? {}) as ClaimArgs;
+      const claim =
+        claimId === undefined || claimId === null || claimId === ""
+          ? room.pendingClaims()[0]?.claim
+          : room.claims.find((c) => c.id === String(claimId));
+      if (!claim) return claimId ? "That BINGO claim doesn't exist." : "No BINGO claim is waiting in this room.";
+      if (claim.status === "invalid") return "That claim wasn't a valid BINGO, so there's nothing to decide.";
+      if (claim.status !== "pending") {
+        return `That BINGO claim was already ${claim.status === "confirmed" ? "confirmed" : "turned down"}.`;
+      }
+      room.resolveClaim(claim.id, confirm, confirm || typeof reason !== "string" ? undefined : reason);
+    });
+  bg.onCommand("confirm_claim", resolveClaim(true));
+  bg.onCommand("reject_claim", resolveClaim(false));
+
   bg.onCommand("end", ({ roomCode }) => {
     const room = roomCode ? rooms.get(roomCode) : undefined;
     if (!room) return { ok: false, message: "No room with that code." };
@@ -121,6 +140,7 @@ export function registerBarGames(rooms: RoomManager): void {
     (): GameStatus => ({
       rooms: rooms.all().map((r) => {
         const s = r.summary();
+        const pending = r.pendingClaims();
         return {
           code: r.code,
           kind: r.kind,
@@ -128,6 +148,13 @@ export function registerBarGames(rooms: RoomManager): void {
           phase: r.phase,
           title: `${r.title ? `${r.title} · ` : ""}Game ${r.gameNumber}: ${r.pattern().name}`,
           hostConnected: s.hostConnected,
+          // Left out when nothing is waiting.
+          pendingClaims: pending.length === 0 ? undefined : pending.map(({ claim, at }) => ({
+            id: claim.id,
+            player: claim.playerName,
+            detail: `${r.pattern().name} on card ${claim.cardId}, after ${claim.callCount} calls`,
+            at: new Date(at).toISOString(),
+          })),
         };
       }),
     }),

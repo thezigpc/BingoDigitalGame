@@ -1,16 +1,17 @@
 # Bar Games integration: Bingo
 
-**Level reached: 3** (hosted, branded, connected, controllable), plus SDK 0.2.0's
-`create_room` and casting from the host screen. SDK 0.2.0, vendored at
-`vendor/bargames-sdk-0.2.0.tgz`; manifest at [bargames.json](bargames.json).
+**Level reached: 3** (hosted, branded, connected, controllable), plus `create_room`,
+casting from the host screen (SDK 0.2.0) and `confirm_claim` / `reject_claim` (SDK 0.2.1).
+SDK 0.2.1, vendored at `vendor/bargames-sdk-0.2.1.tgz`; manifest at
+[bargames.json](bargames.json).
 
 ```
 $ npx bargames validate .
 ! image: not pinned by digest; releases should use image@sha256:…
-✓ bingo@0.2.0 (sdk level 3)
+✓ bingo@0.2.1 (sdk level 3)
 
 $ npx bargames check --game http://127.0.0.1:3005
-bingo@0.2.0 · level 3 · http://127.0.0.1:3005
+bingo@0.2.1 · level 3 · http://127.0.0.1:3005
 ✓ health /health → 200
 ✓ /__bargames/venue.json returns the box's branding ("Bingo (mock)")
 ✓ /__bargames/theme.css served
@@ -22,10 +23,12 @@ bingo@0.2.0 · level 3 · http://127.0.0.1:3005
 ✓ command "resume" is wired (and refuses a missing room)
 ✓ command "next_round" is wired (and refuses a missing room)
 ✓ command "end" is wired (and refuses a missing room)
-✓ create_room → room XKXH (with hostUrl)
-✓ status lists XKXH as a venue room
-✓ table view /join/XKXH?as=table → 200
-✓ end closes XKXH
+✓ command "confirm_claim" is wired (and refuses a missing room)
+✓ command "reject_claim" is wired (and refuses a missing room)
+✓ create_room → room AYDF (with hostUrl)
+✓ status lists AYDF as a venue room
+✓ table view /join/AYDF?as=table → 200
+✓ end closes AYDF
 
 all checks passed
 ```
@@ -45,7 +48,7 @@ the dev PC by the live dev site. Inside the container it's 3002, as the manifest
 | `client/src/useVenue.ts` | `useVenue()` and `<VenueBranding />` (mounted once in `main.tsx`) |
 | `client/src/components/TvsPanel.tsx` | The host's "Venue TVs" control (box only) |
 | `client/src/index.css` (top) | `--venue-*` mapped onto the chrome tokens |
-| `test/specs/09-bargames.test.mjs` | Standalone, commands, `create_room`, casting, venue-room idle, status, events and rate-limit tests (16 tests) |
+| `test/specs/09-bargames.test.mjs` | Standalone, commands, `create_room`, casting, venue-room idle, status, events and rate-limit tests (18 tests) |
 
 ## Events
 
@@ -83,6 +86,18 @@ the host's socket intent, then `room.broadcast()`, which is exactly what the soc
 | `resume` | `room.setPaused(false)` | Unknown room. Not playing. Not paused. |
 | `next_round` | `room.newGame(true)` (the host's **New game**: ends this game, deals and starts the next) | Unknown room. Not playing (use `start` from the lobby). |
 | `end` | `rooms.closeRoom(code, "The host ended this room.", "host")` (the host's **Close room**) | Unknown room. |
+| `confirm_claim` | `room.resolveClaim(id, true)` (the host's **Confirm winner**) | Unknown room. No claim waiting (`claimId` omitted). Unknown `claimId`. Claim already confirmed or turned down (e.g. the host's phone got there first). A false BINGO's id. |
+| `reject_claim` | `room.resolveClaim(id, false, reason)` (the host's **Dismiss**) | Same as `confirm_claim`. |
+
+**Claims (SDK 0.2.1).** `args` is `ClaimArgs { claimId?, reason? }`. With no `claimId`
+the room's oldest pending claim is resolved. Both commands go through the same
+`room.resolveClaim` as the host's buttons (`server/src/bargames.ts:106`), then the
+normal broadcast, so a confirm emits `winner` and the game stays paused exactly as when
+the host confirms. `reject_claim`'s optional `reason` (trimmed, at most 140 characters)
+is stored on that claim, and the player's phone shows
+"Your BINGO wasn't accepted: <reason>". Only a box can send a reason: the host's
+Dismiss sends none, and the player's screen is unchanged in that case (a test checks
+the claim has no `reason` field).
 
 `pause` also holds a pending claim. A valid BINGO pauses the game itself, so `resume`
 restarts auto-calling while the host is still checking it. That's the same as the host
@@ -92,6 +107,14 @@ pressing Resume.
 `{ code, kind, players, phase: "lobby" | "playing", title: "Game 2: Four Corners", hostConnected }`.
 `players` counts seated players only (no tables or paper-mode viewers). A room created
 with a title shows it first: `"Friday Bingo · Game 1: Any Line"`.
+
+**`pendingClaims`** (`server/src/bargames.ts:152`): valid BINGOs waiting for a decision,
+oldest first, left out when there are none:
+`{ id: "<claim id>", player: "Ann", detail: "Any Line on card K7Q2MX, after 23 calls", at: "<ISO time>" }`.
+`id` is the game's own claim id, the same one the host screen uses, so the box's
+Confirm/Reject and the host's buttons act on the same claim. False BINGOs are never
+pending (they're rejected on the spot), so they never appear. The claim time is kept in
+a `WeakMap` inside `Room`, not on `ClaimView`, so the views sent to phones don't change.
 
 ## `create_room` (SDK 0.2.0)
 
@@ -161,10 +184,21 @@ with a title shows it first: `"Friday Bingo · Game 1: Any Line"`.
   - **Browser (headless Chromium):** against a fake core with two TVs, the panel listed
     them, showed both messages, and sent the right cast. A standalone server showed no
     "Venue TVs" panel.
-  - **Not tested:** casting on the mock box. `npx bargames mock-box` doesn't serve
-    `/internal/displays`, so `displays()` reports `enabled: false` there and the panel
-    stays hidden. That's correct behavior, but it means the real core's cast flow is
-    untested here (see SDK requests).
+  - **Against the 0.2.1 mock box** (`npx bargames mock-box . --tv-pin 1234`), from a
+    host page through the gateway on `:7080`:
+    - the panel listed "Bar (fake TV) (Main room)" and "Patio (fake TV) (Patio)", both
+      *Free*;
+    - PIN `0000` showed the box's message as-is: "wrong TV PIN";
+    - PIN `1234` showed "Bar (fake TV): showing this room.", and the mock printed
+      `TV cast fake-bar → http://localhost:7080/join/BTMM?as=table`. The list then
+      tagged that TV *Showing this room*;
+    - **Stop showing** showed "Bar (fake TV): stopped.", the mock printed
+      `TV off fake-bar`, and the TV went back to *Free*;
+    - with `--no-cast`, the panel didn't appear at all;
+    - no page errors.
+
+    The wrong-PIN *lockout* (too many wrong PINs) wasn't driven to its limit. Its
+    message would be shown as-is, like "wrong TV PIN".
 
 ## Table (TV) view
 
@@ -199,8 +233,8 @@ with a title shows it first: `"Friday Bingo · Game 1: Any Line"`.
         rule that ⛶ is on every screen; checked on a standalone server.
       - **The winner takeover** closes itself after 12 s.
       - **A pending BINGO claim** stays on screen as "The host is checking the card…"
-        until someone resolves it, either the host's phone or staff on the iPad through
-        `hostUrl`. There's no box command for it.
+        until someone resolves it: the host's phone, staff on the iPad through
+        `hostUrl`, or the box's `confirm_claim` / `reject_claim` (SDK 0.2.1).
       - **Pattern-card button and ☰ menu:** both appear only on a table that can control
         the game. The box's table can't.
       - **Hover and "tap to" hints:** none show on a display-only table.
@@ -260,15 +294,18 @@ have nothing to change.
 
 ## Image
 
-- **Name:** `ghcr.io/thezigpc/bingo:0.2.0` (0.1.0 is published and left alone). The
+- **Name:** `ghcr.io/thezigpc/bingo:0.2.1` (0.1.0 is published and left alone). The
   version and tag were bumped together in one commit. `npx bargames validate .` passes
-  (`✓ bingo@0.2.0 (sdk level 3)`), with only the expected warning that the image isn't
+  (`✓ bingo@0.2.1 (sdk level 3)`), with only the expected warning that the image isn't
   pinned by digest.
-- **0.2.0: not published yet.** It publishes when `main` is pushed. The workflow file is
-  unchanged and still byte-identical to the snippet. Docker still isn't installed on the
-  dev PC, so the CI run is the clean-checkout build test again. A fresh `git clone` of
-  the 0.2.0 commit was checked by hand (`npm ci`, `npm run build`, the vendored
-  `bargames-sdk-0.2.0.tgz` present).
+- **0.2.0 and 0.2.1: not published yet.** Both commits go up in one push.
+  - **What the push builds:** the workflow runs when `bargames.json` changes on `main`
+    and builds the version at the tip. So the push publishes **0.2.1** only, and 0.2.0
+    is never published. That's fine: no box was ever told about 0.2.0.
+  - **Workflow file:** unchanged, still byte-identical to the snippet.
+  - **Clean-checkout build:** Docker still isn't installed on the dev PC, so the CI run
+    is the real test. A fresh `git clone` of the commit was checked by hand: `npm ci`,
+    `npm run build`, and the vendored `bargames-sdk-0.2.1.tgz` is present.
 - **Publishing:** `.github/workflows/publish-image.yml`, copied unchanged from the
   integration snippets. It builds `linux/amd64` with a plain `docker build .` and pushes
   to GHCR whenever `bargames.json` changes on `main`. It can also be started from the
@@ -315,8 +352,16 @@ have nothing to change.
 - `TvsPanel` renders nothing off a box;
 - the three cast intents exist standalone but only answer `enabled: false` / `ok: false`.
 
+**SDK 0.2.1 additions:**
+- `Room.resolveClaim` takes an optional `reason`. The host's socket intent never
+  passes one;
+- `ClaimView` gained an optional `reason`. It's never set standalone, so the JSON sent to
+  phones is unchanged;
+- `PlayerView` shows the rejection banner only when a `reason` exists;
+- `Room` keeps claim times in a private `WeakMap`, which changes nothing in any view.
+
 **Verified:**
-- **Tests:** all 24 pre-Bar-Games tests pass unchanged (40 in total).
+- **Tests:** all 24 pre-Bar-Games tests pass unchanged (42 in total).
 - **New standalone tests:**
   - the cast intents report disabled and refuse, and players are refused;
   - `/api/config` returns the old name;
@@ -354,15 +399,19 @@ have nothing to change.
    venue room after a restart, but it gets a new code. The box would need to re-cast it,
    and players would have to rejoin.
 5. ~~A `create` command~~: done in SDK 0.2.0 (`create_room`); implemented above.
-6. **Casting in `mock-box`.** The mock core returns 404 for `/internal/displays`, so
-   `displays()` is `enabled: false` and a game's casting UI can't be seen or exercised
-   against it. Fake TVs (one free, one busy, one that `needsCode`), a fixed PIN, and an
-   `npx bargames check` step that calls the game's cast path would close that gap.
-7. **A command to resolve claims**, or a documented answer. A valid BINGO pauses Bingo
-   until a host confirms or dismisses it. With a venue room run only from the iPad's box
-   UI (without opening `hostUrl`), nothing can resolve it. `resume` restarts calling but
-   leaves the claim on the TV. A generic `resolve`/`dismiss` command, or the box UI
-   pointing staff to `hostUrl` when a `claim_pending` event arrives, would cover it.
-8. **`hostUrl` is a bearer link.** Bingo's carries the venue room's host-seat token. Please
-   confirm the box shows it only to admins and never logs or exports it (the SDK
-   comment says so; worth stating in the guide's security notes).
+6. ~~Casting in `mock-box`~~: done in SDK 0.2.1 (fake TVs, `--tv-pin`, `--no-cast`);
+   tested above. What's still missing: a fake TV that answers `needsCode`, so a game's
+   "not paired yet" message can be seen against the mock. Bingo's is covered only by its
+   own fake core in the tests.
+7. ~~A command to resolve claims~~: done in SDK 0.2.1 (`confirm_claim` /
+   `reject_claim`); implemented above.
+8. ~~`hostUrl` is a bearer link~~: answered. The box never logs or saves it, and returns it
+   only to the signed-in admin page that asked for it.
+9. **`bargames help` lists old commands.** It still says "send a command: start, pause,
+   resume, next_round, end". It doesn't mention `create_room`, `confirm_claim` or
+   `reject_claim`, or that `--args '{"claimId":"…","reason":"…"}'` is how to pass
+   `ClaimArgs`.
+10. **`check` can't see `pendingClaims` without a claim.** It checks the shape only when a
+    room has one, and it can't make a game produce a claim. A note in the guide that games
+    should test `pendingClaims` themselves (as Bingo does), or a `check --room CODE` that
+    validates a room you've set up by hand, would make that explicit.

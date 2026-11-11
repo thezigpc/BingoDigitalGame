@@ -353,6 +353,83 @@ describe("on a box", () => {
     assert.ok(!server.output.includes("4321"), "PIN never logged");
   });
 
+  test("confirm_claim / reject_claim and pendingClaims in status", async () => {
+    const { code, host, players: [ann, bo] } = await setupRoom(server, ["Ann", "Bo"]);
+    const cmd = async (name, roomCode, args) => {
+      const res = await fetch(`${server.url}/__bargames/command`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${TOKEN}`, "content-type": "application/json" },
+        body: JSON.stringify({ command: name, roomCode, args }),
+      });
+      return res.json();
+    };
+    const statusOf = async () =>
+      (await (await fetch(`${server.url}/__bargames/status`, { headers: { authorization: `Bearer ${TOKEN}` } })).json()).rooms.find(
+        (r) => r.code === code,
+      );
+
+    // Nothing waiting yet: no pendingClaims, and both commands refuse.
+    assert.equal((await statusOf()).pendingClaims, undefined);
+    assert.equal((await cmd("confirm_claim", code)).ok, false);
+    assert.equal((await cmd("reject_claim", code)).ok, false);
+
+    // Every card wins once all B balls are out; Ann claims first, then Bo.
+    await host.ok("setPattern", { patternId: "custom", customMask: [0] });
+    await host.ok("startGame");
+    for (let i = 0; i < 15; i++) await host.ok("callNext");
+    await bo.waitFor((s) => s.called.length === 15);
+    assert.equal((await ann.ok("claimBingo")).valid, true);
+    await sleep(5);
+    assert.equal((await bo.ok("claimBingo")).valid, true);
+
+    const pending = (await statusOf()).pendingClaims;
+    assert.equal(pending.length, 2);
+    assert.deepEqual(pending.map((c) => c.player), ["Ann", "Bo"], "oldest first");
+    assert.match(pending[0].detail, /^Custom Pattern on card [A-Z0-9]{6}, after 15 calls$/);
+    assert.ok(!Number.isNaN(Date.parse(pending[0].at)));
+    assert.ok(pending[0].at <= pending[1].at);
+    const hostIds = (await host.waitFor((s) => s.claims.filter((c) => c.status === "pending").length === 2)).claims.map((c) => c.id);
+    assert.ok(hostIds.includes(pending[0].id) && hostIds.includes(pending[1].id), "ids are the game's claim ids");
+
+    // Refusals: unknown room, unknown claim.
+    assert.equal((await cmd("confirm_claim", "QQQQ")).ok, false);
+    assert.equal((await cmd("reject_claim", "QQQQ", { claimId: pending[0].id })).ok, false);
+    const unknown = await cmd("confirm_claim", code, { claimId: "nope" });
+    assert.equal(unknown.ok, false);
+    assert.ok(unknown.message);
+
+    // claimId omitted: the oldest (Ann's) is confirmed, through the host's path.
+    assert.equal((await cmd("confirm_claim", code)).ok, true);
+    await host.waitFor((s) => s.claims.find((c) => c.id === pending[0].id)?.status === "confirmed", "Ann confirmed");
+    const win = await core.waitFor((e) => e.type === "winner" && e.roomCode === code, "winner");
+    assert.equal(win.data.name, "Ann");
+    const again = await cmd("reject_claim", code, { claimId: pending[0].id });
+    assert.equal(again.ok, false, "already decided");
+    assert.match(again.message, /already confirmed/);
+    assert.deepEqual((await statusOf()).pendingClaims.map((c) => c.player), ["Bo"]);
+
+    // reject_claim by id, with a reason the player sees.
+    assert.equal((await cmd("reject_claim", code, { claimId: pending[1].id, reason: "Card was checked: not this pattern" })).ok, true);
+    const boView = await bo.waitFor((s) => s.claims.find((c) => c.id === pending[1].id)?.status === "dismissed", "Bo rejected");
+    assert.equal(boView.claims.find((c) => c.id === pending[1].id).reason, "Card was checked: not this pattern");
+    assert.match((await cmd("confirm_claim", code, { claimId: pending[1].id })).message, /already turned down/);
+    assert.equal((await statusOf()).pendingClaims, undefined, "nothing waiting");
+    assert.equal((await cmd("confirm_claim", code)).ok, false, "omitted claimId, nothing waiting");
+  });
+
+  test("the host's own Dismiss sends no reason (unchanged)", async () => {
+    const { host, players: [ann] } = await setupRoom(server, ["Ann"]);
+    await host.ok("setPattern", { patternId: "custom", customMask: [0] });
+    await host.ok("startGame");
+    for (let i = 0; i < 15; i++) await host.ok("callNext");
+    await ann.waitFor((s) => s.called.length === 15);
+    await ann.ok("claimBingo");
+    const claim = (await host.waitFor((s) => s.claims.some((c) => c.status === "pending"))).claims[0];
+    await host.ok("resolveClaim", { claimId: claim.id, confirm: false });
+    const v = await ann.waitFor((s) => s.claims[0]?.status === "dismissed");
+    assert.equal("reason" in v.claims[0], false);
+  });
+
   test("rate limit keys on the gateway's client IP, so one guest can't lock out the bar", async () => {
     const gw = (ip) => ({ "x-bargames-via": "1", "x-bargames-client-ip": ip });
     assert.match((await failJoins(server.url, gw("192.168.1.50"), 21)).error, RATE_LIMITED);

@@ -224,6 +224,8 @@ export interface ClaimView {
   status: ClaimStatus;
   /** How many balls had been called when the claim was made. */
   callCount: number;
+  /** Why it was turned down. Only a Bar Games box's reject_claim sets it. */
+  reason?: string;
 }
 
 export interface TableSummary {

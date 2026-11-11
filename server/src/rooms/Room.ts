@@ -73,6 +73,8 @@ export class Room {
   nextCallAt: number | null = null;
   private autoTimer: NodeJS.Timeout | null = null;
   claims: ClaimView[] = [];
+  /** When each claim was made (Bar Games status). Kept off ClaimView so the views don't change. */
+  private readonly claimAt = new WeakMap<ClaimView, number>();
   lastActivityAt = Date.now();
   readonly createdAt = Date.now();
   closed = false;
@@ -460,10 +462,12 @@ export class Room {
     return { valid: false, cardId: null };
   }
 
-  resolveClaim(claimId: string, confirm: boolean): void {
+  /** `reason`: a Bar Games box's reject_claim message for the player (the host's buttons send none). */
+  resolveClaim(claimId: string, confirm: boolean, reason?: string): void {
     const claim = this.claims.find((c) => c.id === claimId);
     if (!claim || claim.status !== "pending") throw new GameError("BAD_REQUEST");
     claim.status = confirm ? "confirmed" : "dismissed";
+    if (!confirm && reason?.trim()) claim.reason = reason.trim().slice(0, 140);
     if (confirm) {
       this.emit("winner", { name: claim.playerName, round: this.gameNumber, calls: this.called.length, pattern: this.pattern().name });
     }
@@ -474,7 +478,15 @@ export class Room {
     });
   }
 
+  /** Valid claims waiting for the host, oldest first, with when each was made. */
+  pendingClaims(): { claim: ClaimView; at: number }[] {
+    return this.claims
+      .filter((c) => c.status === "pending")
+      .map((claim) => ({ claim, at: this.claimAt.get(claim) ?? this.createdAt }));
+  }
+
   private addClaim(claim: ClaimView): void {
+    this.claimAt.set(claim, Date.now());
     this.claims.push(claim);
     if (this.claims.length > MAX_CLAIMS_KEPT) this.claims.splice(0, this.claims.length - MAX_CLAIMS_KEPT);
   }

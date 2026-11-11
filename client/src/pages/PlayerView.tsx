@@ -18,6 +18,9 @@ export function PlayerView({ view, skew, act, setToast }: Props) {
   const myPending = view.claims.find((c) => c.playerId === me && c.status === "pending");
   const confirmed = view.claims.filter((c) => c.status === "confirmed");
   const iWon = confirmed.some((c) => c.playerId === me);
+  // Only a Bar Games box's reject_claim gives a reason; the host's Dismiss never does.
+  const myRejected = [...view.claims].reverse().find((c) => c.playerId === me && c.status !== "invalid");
+  const rejectReason = myRejected?.status === "dismissed" ? myRejected.reason : undefined;
   const [claiming, setClaiming] = useState(false);
 
   // Optimistic daubs: shown instantly, replaced by the server's truth on the next state.
@@ -66,6 +69,8 @@ export function PlayerView({ view, skew, act, setToast }: Props) {
         <div className="banner banner-info">🏆 {confirmed.map((c) => c.playerName).join(", ")} won!</div>
       ) : myPending ? (
         <div className="banner banner-win">BINGO! The host is checking your card…</div>
+      ) : rejectReason ? (
+        <div className="banner banner-info">Your BINGO wasn't accepted: {rejectReason}</div>
       ) : null}
 
       <section className="player-top">

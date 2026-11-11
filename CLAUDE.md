@@ -228,6 +228,11 @@ edit anything under GameBroker.
     there).
   - **Releases:** bump `version` and the image tag in `bargames.json` together. Never
     re-publish a tag.
+- **SDK 0.2.1** (2026-11-10): `confirm_claim` / `reject_claim` go through
+  `room.resolveClaim` (no `claimId` = oldest pending). `reject_claim`'s `reason` lands on
+  `ClaimView.reason` and shows on that player's phone. Status lists `pendingClaims`
+  (omitted when empty). Test casting with `npx bargames mock-box . --tv-pin 1234` (fake
+  TVs) or `--no-cast`.
 
 ## Lesson: socket.io transports through Cloudflare Tunnel (2026-11-08)
 
