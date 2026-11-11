@@ -6,15 +6,14 @@ import { Server } from "socket.io";
 import { DEFAULT_GAME_NAME } from "@bingo/shared";
 import { CLIENT_DIST_PATH, PORT } from "./config.js";
 import { RoomManager } from "./rooms/RoomManager.js";
-import { initAdminAuth } from "./admin/auth.js";
-import { adminRouter } from "./admin/routes.js";
+import { adminAuth, adminRouter } from "./admin/routes.js";
 import { initAdminSettings } from "./admin/settings.js";
 import { registerSocketHandlers, type IO } from "./socket/index.js";
 import { bg, displayName, registerBarGames } from "./bargames.js";
 import { log } from "@bargames/gamekit/server";
 
 await initAdminSettings();
-await initAdminAuth();
+await adminAuth.init();
 
 const app = express();
 const httpServer = createServer(app);

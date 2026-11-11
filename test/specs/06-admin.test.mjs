@@ -1,5 +1,9 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { randomBytes, scryptSync } from "node:crypto";
 import { startServer, setupRoom } from "../harness.mjs";
 
 let server;
@@ -18,7 +22,9 @@ const api = async (path, { method = "GET", token, body } = {}) => {
 let token;
 
 test("first-run setup sets the password once; login and logout work", async () => {
-  assert.deepEqual((await api("/status")).body, { setupNeeded: true, authenticated: false });
+  const first = (await api("/status")).body;
+  assert.equal(first.setupNeeded, true);
+  assert.equal(first.authenticated, false);
   assert.equal((await api("/overview")).status, 401, "locked before login");
   assert.equal((await api("/setup", { method: "POST", body: { password: "short" } })).status, 400);
 
@@ -111,4 +117,39 @@ test("default look: admin sets it (or copies a room's); a host device's own defa
   const plain = await server.client();
   await plain.ok("createRoom", {});
   assert.equal((await plain.waitFor((v) => v.settings)).settings.theme, "midnight", "reset to built-in");
+});
+
+test("an admin.json written before the game kit still logs in (salt bytes)", async () => {
+  // Exactly what Bingo's own setup screen wrote: scrypt(password, salt bytes, 64), no format field.
+  const dir = mkdtempSync(path.join(tmpdir(), "bingo-oldadmin-"));
+  const salt = randomBytes(16);
+  const hash = scryptSync("old password!", salt, 64);
+  writeFileSync(path.join(dir, "admin.json"), JSON.stringify({ salt: salt.toString("hex"), hash: hash.toString("hex") }));
+  const old = await startServer({ DATA_DIR: dir });
+  try {
+    const call = (password) =>
+      fetch(`${old.url}/api/admin/login`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ password }),
+      });
+    assert.equal((await (await fetch(`${old.url}/api/admin/status`)).json()).setupNeeded, false);
+    assert.equal((await call("wrong one")).status, 401);
+    const ok = await call("old password!");
+    assert.equal(ok.status, 200);
+    assert.ok((await ok.json()).token);
+  } finally {
+    await old.stop();
+  }
+});
+
+test("standalone, one IP's wrong guesses never lock the admin out (a venue shares one IP)", async () => {
+  const login = (password) =>
+    fetch(`${server.url}/api/admin/login`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "cf-connecting-ip": "198.51.100.7" },
+      body: JSON.stringify({ password }),
+    });
+  for (let i = 0; i < 11; i++) assert.equal((await login(`guess ${i}`)).status, 401, `guess ${i}: wrong, not locked`);
+  assert.equal((await login("correct horse")).status, 200, "the real admin still gets in from the same IP");
 });

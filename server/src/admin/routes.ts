@@ -1,64 +1,33 @@
-import express, { type Request, type Response, type NextFunction } from "express";
+import { adminRouter as kitAdminRouter, createAdminAuth, log } from "@bargames/gamekit/server";
+import type express from "express";
 import type { AdminOverview, AdminSettings } from "@bingo/shared";
+import { ADMIN_PASSWORD, store } from "../config.js";
 import { ADMIN_CLOSE_REASON, type RoomManager } from "../rooms/RoomManager.js";
-import { clientIp } from "../bargames.js";
-import { log } from "@bargames/gamekit/server";
-import { isValidSession, login, loginBlocked, logout, setupNeeded, setupPassword } from "./auth.js";
+import { clientIp, onBox } from "../bargames.js";
 import { getAdminSettings, updateAdminSettings } from "./settings.js";
 
-const bearer = (req: Request) => req.get("authorization")?.replace(/^Bearer\s+/i, "");
+/**
+ * The admin password (the kit's admin auth): the ADMIN_PASSWORD env var, or a scrypt hash
+ * chosen once on the /admin setup screen and kept in DATA_DIR/admin.json. Whoever
+ * completes setup first becomes admin, so do it right after deploying.
+ */
+export const adminAuth = createAdminAuth({
+  store,
+  envPassword: ADMIN_PASSWORD,
+  // Bingo's admin.json has always derived keys from the salt's bytes. Must match, or
+  // every live admin is locked out.
+  saltFormat: "bytes",
+  // Standalone behind Cloudflare a whole venue's Wi-Fi shares one public IP, so a
+  // per-IP lockout would let any guest lock the real admin out; the kit's global cap
+  // and capped delay still slow guessing. On a box each device has its own address.
+  failsAllowed: onBox ? undefined : Infinity,
+});
 
-/** /api/admin/*: password login, room list/close, and admin settings. */
+/** /api/admin/*: the kit's status, setup, login and logout, then Bingo's room list, close and settings. */
 export function adminRouter(rooms: RoomManager): express.Router {
-  const r = express.Router();
-  r.use(express.json({ limit: "16kb" }));
-  // Admin responses are never cacheable.
-  r.use((_req, res, next) => {
-    res.set("Cache-Control", "no-store");
-    next();
-  });
+  const r = kitAdminRouter({ auth: adminAuth, clientIp });
 
-  r.get("/status", (req, res) => {
-    res.json({ setupNeeded: setupNeeded(), authenticated: isValidSession(bearer(req)) });
-  });
-
-  r.post("/setup", async (req, res) => {
-    try {
-      const token = await setupPassword(String(req.body?.password ?? ""));
-      res.json({ ok: true, token });
-    } catch (err) {
-      res.status(400).json({ ok: false, error: err instanceof Error ? err.message : "Setup failed." });
-    }
-  });
-
-  r.post("/login", async (req, res) => {
-    const ip = clientIp(req);
-    if (loginBlocked(ip)) {
-      res.status(429).json({ ok: false, error: "Too many failed attempts. Try again in 15 minutes." });
-      return;
-    }
-    const token = await login(String(req.body?.password ?? ""), ip);
-    if (!token) {
-      res.status(401).json({ ok: false, error: "Wrong password." });
-      return;
-    }
-    res.json({ ok: true, token });
-  });
-
-  r.post("/logout", (req, res) => {
-    logout(bearer(req));
-    res.json({ ok: true });
-  });
-
-  // Everything below needs a signed-in admin.
-  r.use((req: Request, res: Response, next: NextFunction) => {
-    if (!isValidSession(bearer(req))) {
-      res.status(401).json({ ok: false, error: "Please sign in again." });
-      return;
-    }
-    next();
-  });
-
+  // Everything below needs a signed-in admin (the kit's router checks it).
   r.get("/overview", (_req, res) => {
     const body: AdminOverview = { rooms: rooms.list(), settings: getAdminSettings(), serverTime: Date.now() };
     res.json(body);
