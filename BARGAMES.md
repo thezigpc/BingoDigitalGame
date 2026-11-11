@@ -298,7 +298,12 @@ have nothing to change.
   version and tag were bumped together in one commit. `npx bargames validate .` passes
   (`✓ bingo@0.2.1 (sdk level 3)`), with only the expected warning that the image isn't
   pinned by digest.
-- **0.2.0 and 0.2.1: not published yet.** Both commits go up in one push.
+- **0.2.1: published.** The "Publish image" workflow
+  ([run 42934222401](https://github.com/thezigpc/BingoDigitalGame/actions/runs/42934222401),
+  2026-11-11) went green. That's the clean-checkout `docker build .` for `linux/amd64`.
+  The step 10 anonymous pull check on `ghcr.io/v2/thezigpc/bingo/manifests/0.2.1`
+  returns **200**, so a box can pull it.
+- **0.2.0 and 0.2.1 went up in one push.**
   - **What the push builds:** the workflow runs when `bargames.json` changes on `main`
     and builds the version at the tip. So the push publishes **0.2.1** only, and 0.2.0
     is never published. That's fine: no box was ever told about 0.2.0.
