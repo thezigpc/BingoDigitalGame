@@ -81,8 +81,10 @@ export function registerBarGames(rooms: Rooms): void {
     // The box starts a room for its TVs (iPad: "Put a game on the TVs > New room").
     // No host phone: the commands drive it, and hostUrl opens the empty host seat on
     // the staff iPad. Opening /join/{code}?as=table casts it.
-    createVenueRoom: ({ kind, title }) => {
-      const { room, hostToken } = createVenueRoom(rooms, kind ?? "venue", title); // GameError("ROOM_FULL") at the cap
+    // firstJoinerHosts (SDK 0.7.0, the TVs page's "Show on this TV"): nobody hosts yet, and
+    // the first phone to join from the TV's QR code takes the host seat.
+    createVenueRoom: ({ kind, title, firstJoinerHosts }) => {
+      const { room, hostToken } = createVenueRoom(rooms, kind ?? "venue", title, firstJoinerHosts === true); // GameError("ROOM_FULL") at the cap
       room.broadcast();
       return { room, hostUrl: `/join/${room.code}?host=${encodeURIComponent(hostToken)}` };
     },

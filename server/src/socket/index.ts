@@ -185,7 +185,11 @@ export function registerSocketHandlers(io: IO, rooms: Rooms): void {
         if (req.role !== "player" && req.role !== "table") throw new GameError("BAD_REQUEST");
         // A known token means "same seat again" - never a second seat.
         const existing = req.token ? room.findByToken(req.token) : undefined;
-        const member = existing ?? room.addMember(req.role, req.name, req.tableKey);
+        // A box room with nobody hosting yet ("first joiner hosts"): the first phone in
+        // takes the host seat instead of a player seat.
+        const member =
+          existing ??
+          (req.role === "player" && room.hostOpen ? room.claimHostSeat(req.name) : room.addMember(req.role, req.name, req.tableKey));
         // Re-opening the host's Table link on a known seat still grants control.
         if (existing?.role === "table" && req.tableKey === room.tableKey) existing.canControl = true;
         const result = bind(room, member);

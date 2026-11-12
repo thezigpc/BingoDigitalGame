@@ -95,6 +95,11 @@ export class Room implements KitRoom {
   kind: SessionKind;
   /** Optional title from the box's create_room (status only). */
   title?: string;
+  /**
+   * Bar Games "first joiner hosts" (SDK 0.7.0): the box put this room on a TV with nobody
+   * hosting yet, so the first phone to join takes the host seat. Cleared once taken.
+   */
+  hostOpen = false;
 
   /** Set by the room registry: closes just this room if one of its timers throws. */
   onFatalError: (err: unknown) => void = () => {};
@@ -115,6 +120,18 @@ export class Room implements KitRoom {
     const m = this.newMember("host", name || "Host");
     this.hostId = m.id;
     return m;
+  }
+
+  /**
+   * The first phone to join a "first joiner hosts" room becomes its host: the same seat and
+   * powers as a phone host who created the room, under the name they typed.
+   */
+  claimHostSeat(rawName: string | undefined): Member {
+    const host = this.members.get(this.hostId);
+    if (!this.hostOpen || !host) throw new GameError("BAD_REQUEST");
+    this.hostOpen = false;
+    host.name = (rawName ?? "").trim().slice(0, 24) || "Host";
+    return host;
   }
 
   addMember(role: "player" | "table", rawName: string | undefined, tableKey?: string): Member {

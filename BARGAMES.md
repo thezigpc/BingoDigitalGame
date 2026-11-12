@@ -4,20 +4,21 @@
 casting from the host screen (SDK 0.2.0), `confirm_claim` / `reject_claim` (SDK 0.2.1),
 the Rooms-page status fields, `tableMode` and venue join links (SDK 0.3.0), and
 "← All games", staff announcements and `joinPath` (SDK 0.4.0), and the shared-screen
-marker, `--venue-on-primary` and tableMode's wake lock (SDK 0.5.0).
+marker, `--venue-on-primary` and tableMode's wake lock (SDK 0.5.0), and staff sign-in
+and "first joiner hosts" (SDK 0.7.x).
 
-- **SDK:** 0.5.0, vendored at `vendor/bargames-sdk-0.5.0.tgz`.
-- **Game kit:** 0.3.2, vendored at `vendor/bargames-gamekit-0.3.2.tgz` (release v0.3.2 of
+- **SDK:** 0.7.1, vendored at `vendor/bargames-sdk-0.7.1.tgz`.
+- **Game kit:** 0.4.0, vendored at `vendor/bargames-gamekit-0.4.0.tgz` (release v0.4.0 of
   `thezigpc/gamekit`). See "Game kit" below.
-- **Manifest:** [bargames.json](bargames.json), Bingo `0.3.1`.
+- **Manifest:** [bargames.json](bargames.json), Bingo `0.4.0`.
 
 ```
 $ npx bargames validate .
 ! image: not pinned by digest; releases should use image@sha256:…
-✓ bingo@0.3.1 (sdk level 3)
+✓ bingo@0.4.0 (sdk level 3)
 
 $ npx bargames check --game http://127.0.0.1:3005
-bingo@0.3.1 · level 3 · http://127.0.0.1:3005
+bingo@0.4.0 · level 3 · http://127.0.0.1:3005
 ✓ health /health → 200
 ✓ /__bargames/venue.json returns the box's branding ("Bingo (mock)")
 ✓ /__bargames/theme.css served
@@ -32,18 +33,18 @@ bingo@0.3.1 · level 3 · http://127.0.0.1:3005
 ✓ command "end" is wired (and refuses a missing room)
 ✓ command "confirm_claim" is wired (and refuses a missing room)
 ✓ command "reject_claim" is wired (and refuses a missing room)
-✓ create_room → room WVQU (with hostUrl)
-✓ status lists WVQU as a venue room
-✓ table view /join/WVQU?as=table → 200
-✓ end closes WVQU
-✓ WVQU left status after "end"
+✓ create_room → room EZAK (with hostUrl)
+✓ status lists EZAK as a venue room
+✓ table view /join/EZAK?as=table → 200
+✓ end closes EZAK
+✓ EZAK left status after "end"
 
 all checks passed
 ```
 
 The game ran on port 3005 for these checks because 3002 (the manifest port) is taken on
 the dev PC by the live dev site. Inside the container it's 3002, as the manifest says.
-Run on 2026-11-11 with SDK 0.5.0 and kit 0.3.2. The mock box ran with `--port 7081
+Run on 2026-11-12 with SDK 0.7.1 and kit 0.4.0. The mock box ran with `--port 7081
 --core-port 7198`, because another project's mock box held 7080 and 7199.
 
 ## Where things live
@@ -62,7 +63,7 @@ Run on 2026-11-11 with SDK 0.5.0 and kit 0.3.2. The mock box ran with `--port 70
 | `client/src/components/bits.tsx` | `joinUrl(code, venue)`: the SDK's `joinUrl`, so links and QR codes use the venue's address on a box |
 | `client/src/components/TvsPanel.tsx` | The host's "Venue TVs" control (box only) |
 | `client/src/index.css` | `--venue-*` mapped onto the chrome tokens (top); `.tv` padding takes `--bg-safe-x/y` |
-| `test/specs/09-bargames.test.mjs` | Standalone, commands, `create_room`, casting, `joinPath`, venue-room idle, status, events and rate-limit tests (19 tests) |
+| `test/specs/09-bargames.test.mjs` | Standalone, commands, `create_room`, casting, `joinPath`, venue-room idle, status, events and rate-limit tests (23 tests) |
 
 ## Events
 
@@ -142,6 +143,42 @@ oldest first:
 Confirm/Reject and the host's buttons act on the same claim. False BINGOs are never
 pending (they're rejected on the spot), so they never appear. The claim time is kept in
 a `WeakMap` inside `Room`, not on `ClaimView`, so the views sent to phones don't change.
+
+## Staff sign-in (SDK 0.7.0)
+
+Staff signed in to the box's admin open Bingo's settings (`routes.admin: "/admin"`)
+without Bingo's admin password.
+- **Server:** the kit's `adminRouter` with `trusted: (req) => bg.isStaff(req)`
+  (`server/src/admin/routes.ts`). `isStaff` is true only on a box, for a request through
+  its gateway that carries the box's staff mark. Standalone it is always false.
+- **Client:** `AdminPage` reads `/api/admin/status`. When it says `trusted` and nobody is
+  signed in, it calls the kit's `staffSignIn(serverUrl)` and uses that token instead of
+  showing the password form. After **Sign out** on that page, it shows the form and
+  doesn't sign staff straight back in; a reload does (they're still box staff).
+- **Tests:** on a box, the gateway mark plus the staff mark gets a session that works on
+  `/overview`. The gateway mark alone, the staff mark alone, or neither gets `trusted:
+  false` and a 403. Standalone, both marks together are ignored.
+- **Mock box, in a browser:** a guest gets the password form. After
+  `/__bargames/staff?next=/admin` the dashboard opens without it. Sign out shows the
+  form. `?off=1` brings the form back for good.
+
+## First joiner hosts (SDK 0.7.0, fixed in 0.7.1)
+
+The box's TVs page ("Show on this TV") sends `create_room` with
+`firstJoinerHosts: true`. Nobody hosts that room yet, so **the first phone to join, from
+the TV's QR code, becomes the host**.
+- `createVenueRoom` marks the room `hostOpen`. The first `joinRoom` as a player then takes
+  the room's existing host seat (`Room.claimHostSeat`) under the name they typed, and gets
+  the host session and view. That's the same seat, token and powers as a phone host who
+  created the room, and it survives a reload. Everyone after that joins as a player. The
+  host isn't counted as a player, as usual.
+- `hostUrl` still opens the same seat on the staff iPad.
+- **Without the flag**, a venue room works exactly as before: the first phone is a player.
+- **Tests:** the first joiner is host (start and call work, status shows `hostName` and
+  `hostConnected`, players 0). The second is a player, and `resume` keeps the host seat.
+  A venue room without the flag seats the first phone as a player.
+- SDK 0.7.0 dropped the flag before it reached the game. Bingo's test caught it, and 0.7.1
+  fixes it.
 
 ## `create_room` (SDK 0.2.0)
 
@@ -379,11 +416,13 @@ have nothing to change.
 
 ## Image
 
-- **Name:** `ghcr.io/thezigpc/bingo:0.3.1`, bumped together with `version` 0.3.1.
-  `npx bargames validate .` passes (`✓ bingo@0.3.1 (sdk level 3)`), with only the
-  expected warning that the image isn't pinned by digest. 0.1.0, 0.2.1 and 0.3.0 are
-  published and left alone.
-- **0.3.1: committed, not pushed.** Pushing to `main` runs the workflow and publishes it.
+- **Name:** `ghcr.io/thezigpc/bingo:0.4.0`, bumped together with `version` 0.4.0.
+  `npx bargames validate .` passes (`✓ bingo@0.4.0 (sdk level 3)`), with only the
+  expected warning that the image isn't pinned by digest. 0.1.0, 0.2.1, 0.3.0 and 0.3.1
+  are published and left alone.
+- **0.4.0: committed, not pushed.** Pushing to `main` runs the workflow and publishes it.
+- **0.3.1: published** ([run 43126969457](https://github.com/thezigpc/BingoDigitalGame/actions/runs/43126969457),
+  2026-11-11); the anonymous pull returned **200**, and it was installed on the box.
 - **0.3.0: published.** The "Publish image" workflow
   ([run 43109672367](https://github.com/thezigpc/BingoDigitalGame/actions/runs/43109672367),
   2026-11-11) went green on the new action versions, with no Node 20 warning. That's the
@@ -395,7 +434,7 @@ have nothing to change.
   checked to exist). That clears GitHub's Node 20 deprecation warning.
 - **Clean-checkout build:** Docker still isn't installed on the dev PC, so the CI run is
   the real test. Everything the image needs is committed, including
-  `vendor/bargames-sdk-0.5.0.tgz` and `vendor/bargames-gamekit-0.3.2.tgz`. The kit
+  `vendor/bargames-sdk-0.7.1.tgz` and `vendor/bargames-gamekit-0.4.0.tgz`. The kit
   tarball is the GitHub release asset, identical to the kit repo's own build. Neither
   build needs GitHub access.
 - **0.2.1: published** ([run 42934222401](https://github.com/thezigpc/BingoDigitalGame/actions/runs/42934222401),
@@ -489,6 +528,18 @@ have nothing to change.
 - standalone, nothing is marked as a shared screen, and Bingo's wake lock runs as before;
 - `--accent-ink` reads `var(--venue-on-primary, <old value>)`.
 
+**Kit 0.4.0 and SDK 0.7.1 changes (Bingo 0.4.0):**
+- the admin status reply carries `trusted` (always false standalone), and the admin page
+  only acts on it when true;
+- `joinRoom` checks `room.hostOpen`, which only a box's `create_room` with the flag sets;
+- the host's Venue TVs cast and stop wait up to 30 s (`call.withTimeout(30_000)`), since
+  AirPlay can be slow; that panel exists only on a box.
+
+**Verified for 0.4.0:**
+- 48 tests pass (the 45 plus three new ones), and `bargames check` passes.
+- The old-against-new browser flow, run against 0.3.1 (e72b179), differed **only in the
+  random card numbers**.
+
 **Verified for 0.3.1:**
 - 45 tests pass, and `bargames check` passes.
 - The same old-against-new browser flow, run against the pushed 0.3.0 (e7a02c7), with
@@ -559,7 +610,7 @@ listing every command and the claim `--args`, and `check --room CODE` (0.3.0). T
 one now validates a live Bingo room with a waiting claim: "1 pending claim(s), shape ok".
 `hostUrl` handling was answered (never logged or saved by the box).
 
-## Game kit (0.3.2)
+## Game kit (0.4.0)
 
 Bingo now uses the kit for its plumbing, adopted in the README's order (each step
 committed separately with the tests green):

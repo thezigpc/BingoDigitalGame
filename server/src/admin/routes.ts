@@ -3,7 +3,7 @@ import type express from "express";
 import type { AdminOverview, AdminSettings } from "@bingo/shared";
 import { ADMIN_PASSWORD, store } from "../config.js";
 import { ADMIN_CLOSE_REASON, listRooms, type Rooms } from "../rooms/registry.js";
-import { clientIp, onBox } from "../bargames.js";
+import { bg, clientIp, onBox } from "../bargames.js";
 import { getAdminSettings, updateAdminSettings } from "./settings.js";
 
 /**
@@ -25,7 +25,9 @@ export const adminAuth = createAdminAuth({
 
 /** /api/admin/*: the kit's status, setup, login and logout, then Bingo's room list, close and settings. */
 export function adminRouter(rooms: Rooms): express.Router {
-  const r = kitAdminRouter({ auth: adminAuth, clientIp });
+  // Staff signed in to the venue box open this page from the box without the password
+  // (SDK 0.7.0). isStaff is true only through the box's gateway; always false standalone.
+  const r = kitAdminRouter({ auth: adminAuth, clientIp, trusted: (req) => bg.isStaff(req) });
 
   // Everything below needs a signed-in admin (the kit's router checks it).
   r.get("/overview", (_req, res) => {

@@ -19,3 +19,10 @@ const kitCall = createCall(socket as unknown as Parameters<typeof createCall>[0]
 export function call<T = object>(event: keyof ClientToServerEvents, ...args: unknown[]): Promise<T> {
   return kitCall<T>(event, ...args);
 }
+
+const slowKitCall = kitCall.withTimeout(30_000);
+
+/** The same, with 30 s to answer: casting to venue TVs (AirPlay can take a while). */
+export function slowCall<T = object>(event: keyof ClientToServerEvents, ...args: unknown[]): Promise<T> {
+  return slowKitCall<T>(event, ...args);
+}

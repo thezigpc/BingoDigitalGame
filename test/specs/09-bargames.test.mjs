@@ -119,6 +119,14 @@ describe("standalone (no BG_* env)", () => {
     assert.equal(cmd.status, 401);
   });
 
+  test("staff sign-in: spoofed gateway staff headers are ignored off a box", async () => {
+    const staff = { "x-bargames-via": "1", "x-bargames-staff": "1" };
+    const st = await (await fetch(`${server.url}/api/admin/status`, { headers: staff })).json();
+    assert.equal(st.trusted, false);
+    const t = await fetch(`${server.url}/api/admin/trusted`, { method: "POST", headers: staff });
+    assert.equal(t.status, 403);
+  });
+
   test("venue TVs: hidden (enabled false) and refused off a box; host only", async () => {
     const { host, players } = await setupRoom(server, ["Ann"]);
     assert.deepEqual((await host.ok("listTvs")).tvs, { enabled: false, pinRequired: false, displays: [] });
@@ -341,6 +349,65 @@ describe("on a box", () => {
     await sleep(100);
     assert.equal(tv.closedReason, "The host ended this room.");
     await core.waitFor((e) => e.type === "room_closed" && e.roomCode === code, "room_closed");
+  });
+
+  test("staff sign-in: the box's signed-in staff get an admin session without the password", async () => {
+    const staff = { "x-bargames-via": "1", "x-bargames-staff": "1" };
+    // Not staff (a guest through the gateway, or anyone straight to the game): refused.
+    for (const headers of [{ "x-bargames-via": "1" }, { "x-bargames-staff": "1" }, {}]) {
+      assert.equal((await (await fetch(`${server.url}/api/admin/status`, { headers })).json()).trusted, false);
+      assert.equal((await fetch(`${server.url}/api/admin/trusted`, { method: "POST", headers })).status, 403);
+    }
+    assert.equal((await (await fetch(`${server.url}/api/admin/status`, { headers: staff })).json()).trusted, true);
+    const res = await (await fetch(`${server.url}/api/admin/trusted`, { method: "POST", headers: staff })).json();
+    assert.equal(res.ok, true);
+    const overview = await fetch(`${server.url}/api/admin/overview`, { headers: { authorization: `Bearer ${res.token}` } });
+    assert.equal(overview.status, 200, "the staff session works like a password session");
+  });
+
+  test("create_room with firstJoinerHosts: the first phone to join becomes the host", async () => {
+    const make = async (args) => {
+      const res = await fetch(`${server.url}/__bargames/command`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${TOKEN}`, "content-type": "application/json" },
+        body: JSON.stringify({ command: "create_room", args }),
+      });
+      const created = await res.json();
+      assert.equal(created.ok, true, created.message);
+      return created.data.roomCode;
+    };
+    const code = await make({ kind: "venue", purpose: "display", firstJoinerHosts: true });
+    // The TV that shows it is a table, not the host.
+    const tv = await server.client();
+    assert.equal((await tv.ok("joinRoom", { code, role: "table" })).role, "table");
+
+    const cat = await server.client();
+    const first = await cat.ok("joinRoom", { code, role: "player", name: "Cat" });
+    assert.equal(first.role, "host");
+    assert.equal(first.name, "Cat");
+    const view = await cat.waitFor((s) => s.you.role === "host", "host view");
+    assert.equal(view.you.role, "host");
+    // Same powers as a phone host: settings, start, call, close.
+    await cat.ok("startGame");
+    await cat.ok("callNext");
+    const status = await (await fetch(`${server.url}/__bargames/status`, { headers: { authorization: `Bearer ${TOKEN}` } })).json();
+    const mine = status.rooms.find((r) => r.code === code);
+    assert.equal(mine.hostConnected, true);
+    assert.equal(mine.hostName, "Cat");
+    assert.equal(mine.players, 0, "the host isn't a player");
+
+    // Everyone after that is a player; a reload keeps the host seat.
+    const dan = await server.client();
+    assert.equal((await dan.ok("joinRoom", { code, role: "player", name: "Dan" })).role, "player");
+    const again = await server.client();
+    assert.equal((await again.ok("resume", { code, token: first.token })).role, "host");
+    await cat.ok("closeRoom");
+
+    // Without the flag: today's venue room (nobody joins as host).
+    const plain = await make({ kind: "venue" });
+    const eve = await server.client();
+    assert.equal((await eve.ok("joinRoom", { code: plain, role: "player", name: "Eve" })).role, "player");
+    assert.equal((await command("end", plain)).ok, true);
   });
 
   test("joinPath: venue and patron rooms get Bingo's join route; a private room never does", async () => {

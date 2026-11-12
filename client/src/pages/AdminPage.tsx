@@ -8,6 +8,7 @@ import {
   type AdminRoomSummary,
   type DisplaySettings,
 } from "@bingo/shared";
+import { staffSignIn } from "@bargames/gamekit/client";
 import { DisplayPicker } from "../components/DisplayPicker";
 import { serverUrl } from "../socket";
 
@@ -50,14 +51,28 @@ function ago(ms: number): string {
 
 export function AdminPage() {
   const [token, setToken] = useState(loadToken);
-  const [status, setStatus] = useState<{ setupNeeded: boolean; authenticated: boolean } | null>(null);
+  const [status, setStatus] = useState<{ setupNeeded: boolean; authenticated: boolean; trusted?: boolean } | null>(null);
   const [error, setError] = useState("");
+  // After a manual Sign out, don't sign venue staff straight back in on this page.
+  const [signedOut, setSignedOut] = useState(false);
 
   const refreshStatus = useCallback(() => {
-    api<{ setupNeeded: boolean; authenticated: boolean }>("/status", token)
-      .then(setStatus)
+    api<{ setupNeeded: boolean; authenticated: boolean; trusted?: boolean }>("/status", token)
+      .then(async (s) => {
+        // Venue staff (the box vouches for this browser, SDK 0.7.0): a session without the
+        // password. Never true off a box, so standalone always shows the form.
+        if (!s.authenticated && s.trusted && !signedOut) {
+          const t = await staffSignIn(serverUrl);
+          if (t) {
+            saveToken(t);
+            setToken(t);
+            return;
+          }
+        }
+        setStatus(s);
+      })
       .catch((e: Error) => setError(e.message));
-  }, [token]);
+  }, [token, signedOut]);
   useEffect(refreshStatus, [refreshStatus]);
 
   const signedIn = (t: string) => {
@@ -66,6 +81,7 @@ export function AdminPage() {
   };
   const signOut = async () => {
     await api("/logout", token, { method: "POST" }).catch(() => {});
+    setSignedOut(true);
     signedIn("");
   };
 

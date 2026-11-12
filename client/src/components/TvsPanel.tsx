@@ -5,7 +5,7 @@
 import { isOnBox } from "@bargames/sdk/client";
 import { useEffect, useState } from "react";
 import type { TvCastResult, TvTargets } from "@bingo/shared";
-import { call } from "../socket";
+import { call, slowCall } from "../socket";
 import { useVenue } from "../useVenue";
 
 export function TvsPanel({ code }: { code: string }) {
@@ -41,7 +41,8 @@ export function TvsPanel({ code }: { code: string }) {
     setBusy(true);
     setNote(null);
     try {
-      const { result } = await call<{ result: TvCastResult }>(event, {
+      // Casting can take longer than a normal call (the box answers "starting" within ~6 s).
+      const { result } = await slowCall<{ result: TvCastResult }>(event, {
         ids: picked,
         pin: targets.pinRequired ? pin : undefined,
       });

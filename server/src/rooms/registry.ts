@@ -46,12 +46,18 @@ export function createRooms(transport: RoomTransport): Rooms {
  * an empty host seat (named "Venue") so venue staff can take the host controls later
  * with the seat's token (the hostUrl).
  */
-export function createVenueRoom(rooms: Rooms, kind: SessionKind = "venue", title?: string): { room: Room; hostToken: string } {
+export function createVenueRoom(
+  rooms: Rooms,
+  kind: SessionKind = "venue",
+  title?: string,
+  firstJoinerHosts = false,
+): { room: Room; hostToken: string } {
   let hostToken = "";
   const room = rooms.create(kind, (r) => {
     r.title = title?.trim().slice(0, 60) || undefined;
     r.setDisplay(getAdminSettings().displayDefaults);
     hostToken = r.addHost("Venue").token;
+    r.hostOpen = firstJoinerHosts;
   });
   return { room, hostToken };
 }
