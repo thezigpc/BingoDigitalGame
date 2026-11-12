@@ -195,6 +195,30 @@ An npm-workspaces monorepo, the same shape as CAHDigitalGame:
   - `RoomView.ballsLeft` is the callable count.
   - On the boards, the skipped rows are dimmed (`.skipped`).
   - It's a host setting, toggled in the lobby settings or next to Auto-call.
+- **Ball machine** (`settings.drawMode: "machine"`, requested by the user on
+  2026-11-12; the reference site's "Manual mode"): for hosts who draw from a physical
+  ball machine or cage.
+  - "Balls drawn by: This app / A ball machine" is in the host's Settings, and it can
+    change at any time.
+  - In machine mode the host taps each drawn number. On the host's phone that's a
+    B-I-N-G-O column picker (`BallPicker`). On a board with control, the board's squares
+    themselves (`BallBoard onPick`).
+  - **Big targets** (user's request): the picker buttons are large (about 59x56 on a
+    phone, 145x77 on an upright iPad), and on a landscape screen of 900px or more they
+    turn into five rows of square buttons. While playing, the host page widens
+    (`.host-machine`). The board on the picking device always uses Fill
+    (`board-fill`), so its squares stretch into the free space (44x108 on an upright
+    iPad). Other screens keep the room's setting.
+  - The `callBall` / `uncallBall` intents use `requireCaller`, the same as `callNext`.
+    The ball animates in with the room's draw animation.
+  - Tapping a called number takes it back after a confirm. That's refused while a BINGO
+    claim is waiting, and it clears players' marks on that number.
+  - Machine mode turns off Call next ball, auto-call, the Space shortcut and
+    skip-unused; `ballsLeft` counts every uncalled ball.
+  - A valid claim doesn't set `paused` in machine mode (there's no Resume button), and
+    switching to machine mode clears it.
+  - Tests: `test/specs/10-ball-machine.test.mjs`. Browser check: the scratchpad script
+    `e2e-machine.cjs`.
 - **Reconnect:** a per-tab session in localStorage. The client re-sends `resume` on
   **every** socket `connect` (the game kit's `useRoomConnection`, used in `RoomPage`), which avoids the
   CAHDigitalGame reconnect-desync bug. There's a reconnect banner, plus the browser's

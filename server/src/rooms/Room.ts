@@ -5,6 +5,7 @@ import {
   DEFAULT_PATTERN_ID,
   DEFAULT_SETTINGS,
   FREE_INDEX,
+  MAX_BALL,
   SETTINGS_LIMITS,
   findPattern,
   generateCardCells,
@@ -320,6 +321,10 @@ export class Room implements KitRoom {
     }
     if (patch.autoCall !== undefined) next.autoCall = Boolean(patch.autoCall);
     if (patch.skipUnused !== undefined) next.skipUnused = Boolean(patch.skipUnused);
+    if (patch.drawMode !== undefined) {
+      if (patch.drawMode !== "app" && patch.drawMode !== "machine") throw new GameError("BAD_REQUEST");
+      next.drawMode = patch.drawMode;
+    }
 
     const redeal = next.cardsPerPlayer !== this.settings.cardsPerPlayer;
     const toPaper = next.cardMode === "paper" && this.settings.cardMode !== "paper";
@@ -337,6 +342,8 @@ export class Room implements KitRoom {
       this.playersChanged();
     }
     if (redeal) for (const p of this.players()) this.dealCards(p);
+    // A ball machine has no auto-call to pause (and no Resume button).
+    if (this.machine) this.paused = false;
     this.rescheduleAutoCall();
   }
 
@@ -362,6 +369,10 @@ export class Room implements KitRoom {
     if (this.phase === "playing" && (!this.autoTimer || this.callableIndex() < 0)) this.rescheduleAutoCall();
   }
 
+  private get machine(): boolean {
+    return this.settings.drawMode === "machine";
+  }
+
   /** Index in drawOrder of the next ball to call, or -1 if none is left. */
   private callableIndex(): number {
     if (!this.settings.skipUnused) return this.drawOrder.length ? 0 : -1;
@@ -371,7 +382,8 @@ export class Room implements KitRoom {
 
   /** How many balls can still be called. */
   ballsLeft(): number {
-    if (!this.settings.skipUnused) return this.drawOrder.length;
+    // A ball machine holds every ball, whatever the pattern.
+    if (!this.settings.skipUnused || this.machine) return this.drawOrder.length;
     const used = usedColumns(this.pattern());
     return this.drawOrder.filter((b) => used[columnOf(b)]).length;
   }
@@ -408,6 +420,7 @@ export class Room implements KitRoom {
 
   callNext(): number {
     if (this.phase !== "playing") throw new GameError("WRONG_PHASE");
+    if (this.machine) throw new GameError("MACHINE_MODE");
     // Skipped balls stay in drawOrder, so switching to a pattern that uses
     // their column brings them back.
     const i = this.callableIndex();
@@ -416,6 +429,41 @@ export class Room implements KitRoom {
     this.called.push(ball);
     this.rescheduleAutoCall();
     return ball;
+  }
+
+  /** Ball-machine mode: the number the host just drew from the machine. */
+  callBall(ball: number): number {
+    if (this.phase !== "playing") throw new GameError("WRONG_PHASE");
+    if (!this.machine) throw new GameError("NOT_MACHINE_MODE");
+    if (!Number.isInteger(ball) || ball < 1 || ball > MAX_BALL) throw new GameError("BAD_REQUEST");
+    const i = this.drawOrder.indexOf(ball);
+    if (i < 0) throw new GameError("ALREADY_CALLED");
+    this.drawOrder.splice(i, 1);
+    this.called.push(ball);
+    log.info("game", "ball picked", { code: this.code, ball, calls: this.called.length });
+    return ball;
+  }
+
+  /**
+   * Ball-machine mode: takes back a number tapped by mistake. Players' marks on
+   * it go too. Not while a BINGO claim is waiting: the host decides that one
+   * against the numbers as they stood.
+   */
+  uncallBall(ball: number): void {
+    if (this.phase !== "playing") throw new GameError("WRONG_PHASE");
+    if (!this.machine) throw new GameError("NOT_MACHINE_MODE");
+    const i = this.called.indexOf(ball);
+    if (i < 0) throw new GameError("BAD_REQUEST");
+    if (this.claims.some((c) => c.status === "pending")) throw new GameError("CLAIM_WAITING");
+    this.called.splice(i, 1);
+    this.drawOrder.push(ball);
+    for (const p of this.players()) {
+      for (const card of p.cards) {
+        const at = card.cells.indexOf(ball);
+        if (at >= 0) card.daubs.delete(at);
+      }
+    }
+    log.info("game", "ball taken back", { code: this.code, ball, calls: this.called.length });
   }
 
   setPaused(paused: boolean): void {
@@ -495,8 +543,9 @@ export class Room implements KitRoom {
         status: "pending",
         callCount: this.called.length,
       });
-      // Hold the game so the host can verify before another ball drops.
-      this.paused = true;
+      // Hold the game so the host can verify before another ball drops. (With a
+      // ball machine the claim screen is the hold: nothing calls on its own.)
+      if (!this.machine) this.paused = true;
       this.rescheduleAutoCall();
       log.info("game", "valid claim", { code: this.code, player: m.name, card: card.id, calls: this.called.length });
       this.emit("claim_pending", { name: m.name });
@@ -557,7 +606,7 @@ export class Room implements KitRoom {
 
   private rescheduleAutoCall(): void {
     this.clearAutoTimer();
-    if (this.closed || this.phase !== "playing" || !this.settings.autoCall || this.paused) return;
+    if (this.closed || this.phase !== "playing" || !this.settings.autoCall || this.paused || this.machine) return;
     if (this.callableIndex() < 0) return;
     const ms = this.settings.autoCallSeconds * 1000;
     this.nextCallAt = Date.now() + ms;

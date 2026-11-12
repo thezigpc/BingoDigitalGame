@@ -11,6 +11,8 @@ import {
 } from "@bingo/shared";
 import {
   BallBoard,
+  BallPicker,
+  pickBall,
   skippedRows,
   CardGrid,
   Countdown,
@@ -43,9 +45,10 @@ export function HostView({ view, skew, act, onShowBoard }: Props) {
   const winners = view.claims.filter((c) => c.status === "confirmed");
   const ballsLeft = view.ballsLeft;
   const paper = view.settings.cardMode === "paper";
+  const machine = view.settings.drawMode === "machine";
 
   return (
-    <main className="host">
+    <main className={`host${machine && playing ? " host-machine" : ""}`}>
       {pending.map((c) => (
         <ClaimPanel key={c.id} claim={c} called={view.called} act={act} />
       ))}
@@ -60,6 +63,15 @@ export function HostView({ view, skew, act, onShowBoard }: Props) {
             {view.settings.autoCall && !view.paused && <Countdown at={view.nextCallAt} skew={skew} />}
             {view.paused && <span className="tag">Paused</span>}
           </div>
+          {machine ? (
+            <>
+              <p className="muted small machine-hint">
+                Ball machine: tap each number as it comes out. Tap a called number to take it back.
+              </p>
+              <BallPicker called={view.called} onPick={pickBall(view.called, act)} />
+            </>
+          ) : (
+          <>
           <button className="btn btn-primary btn-huge" disabled={ballsLeft === 0} onClick={() => act("callNext")}>
             {ballsLeft > 0
               ? "Call next ball"
@@ -84,6 +96,8 @@ export function HostView({ view, skew, act, onShowBoard }: Props) {
               </button>
             )}
           </div>
+          </>
+          )}
         </section>
       ) : (
         <section className="panel">
@@ -137,7 +151,7 @@ export function HostView({ view, skew, act, onShowBoard }: Props) {
 
       <PatternPanel view={view} act={act} />
 
-      {playing && (
+      {playing && !machine && (
         <section className="panel">
           <h2>Board</h2>
           <BallBoard called={view.called} compact skip={skippedRows(view)} />
@@ -345,7 +359,28 @@ function SettingsPanel({ view, act }: { view: RoomView; act: Act }) {
           </div>
         </>
       )}
-      {!locked && (
+      <div className="setting">
+        <span>Balls drawn by</span>
+        <div className="segmented" role="radiogroup">
+          {(["app", "machine"] as const).map((m) => (
+            <button
+              key={m}
+              role="radio"
+              aria-checked={view.settings.drawMode === m}
+              className={view.settings.drawMode === m ? "on" : ""}
+              onClick={() => act("updateSettings", { drawMode: m })}
+            >
+              {m === "app" ? "This app" : "A ball machine"}
+            </button>
+          ))}
+        </div>
+      </div>
+      {view.settings.drawMode === "machine" && (
+        <p className="muted small">
+          Draw the balls from your own machine or cage, then tap each number on the board to call it. Auto-call is off.
+        </p>
+      )}
+      {!locked && view.settings.drawMode === "app" && (
         <div className="setting">
           <label className="switch">
             <input
@@ -358,7 +393,7 @@ function SettingsPanel({ view, act }: { view: RoomView; act: Act }) {
           <SecondsInput view={view} act={act} />
         </div>
       )}
-      {!locked && (
+      {!locked && view.settings.drawMode === "app" && (
         <div className="setting">
           <SkipUnusedSwitch view={view} act={act} />
         </div>

@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from
 import { MAX_BALL, SETTINGS_LIMITS, type RoomView } from "@bingo/shared";
 import { PatternPicker } from "../components/PatternPicker";
 import { toggleFullscreen } from "../fullscreen";
-import { Ball, BallBoard, skippedRows, CardGrid, Countdown, PatternCard, QrCode, joinUrl } from "../components/bits";
+import { Ball, BallBoard, skippedRows, CardGrid, Countdown, PatternCard, QrCode, joinUrl, pickBall } from "../components/bits";
 import { isOnBox } from "@bargames/sdk/client";
 import { useGameName } from "../useGameName";
 import { useVenue } from "../useVenue";
@@ -81,6 +81,9 @@ export function TableView({ view, skew, act, viewer = false, onHostControls }: P
   }, [latestWinner?.id]);
   const spotlight = pending ?? (latestWinner && latestWinner.id === shownWinner ? latestWinner : undefined);
   const calledSet = new Set(view.called);
+  // Ball-machine mode: whoever runs the board taps each drawn number on it.
+  const machine = view.settings.drawMode === "machine";
+  const onPick = control && playing && machine ? pickBall(view.called, act) : undefined;
 
   // Space / Right arrow / PageDown (what presentation clickers send) calls
   // the next ball; P pauses auto-calling.
@@ -88,7 +91,7 @@ export function TableView({ view, skew, act, viewer = false, onHostControls }: P
     if (!control) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.repeat || e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
-      if (playing && [" ", "ArrowRight", "PageDown"].includes(e.key)) {
+      if (playing && !machine && [" ", "ArrowRight", "PageDown"].includes(e.key)) {
         e.preventDefault();
         if (ballsLeft > 0) act("callNext");
       } else if (playing && view.settings.autoCall && (e.key === "p" || e.key === "P")) {
@@ -97,7 +100,7 @@ export function TableView({ view, skew, act, viewer = false, onHostControls }: P
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [control, playing, ballsLeft, view.paused, view.settings.autoCall, act]);
+  }, [control, playing, machine, ballsLeft, view.paused, view.settings.autoCall, act]);
 
   // New game: end this one and deal + start the next straight away.
   // End game: stop and go back to setup (to change the pattern etc.).
@@ -200,7 +203,8 @@ export function TableView({ view, skew, act, viewer = false, onHostControls }: P
     patternScale !== 1 ? "pattern-scaled" : "",
     place !== "normal" ? `place-${place}` : "",
     `align-${view.settings.align}`,
-    `board-${view.settings.boardFit}`,
+    // The device tapping numbers off a ball machine gets the biggest squares it can.
+    `board-${onPick ? "fill" : view.settings.boardFit}`,
     showJoin ? "" : "no-join",
     view.settings.showRecent ? "" : "hide-recent",
   ]
@@ -292,6 +296,7 @@ export function TableView({ view, skew, act, viewer = false, onHostControls }: P
             <div className="tv-controls">
               {playing ? (
                 <>
+                  {!machine && (
                   <button
                     className="btn btn-primary tv-call"
                     disabled={ballsLeft === 0}
@@ -299,7 +304,8 @@ export function TableView({ view, skew, act, viewer = false, onHostControls }: P
                   >
                     {ballsLeft > 0 ? "Call next ball" : view.called.length < MAX_BALL ? "No balls left for this pattern" : "All balls called"}
                   </button>
-                  {view.settings.autoCall && (
+                  )}
+                  {view.settings.autoCall && !machine && (
                     <button className="btn btn-secondary" onClick={() => act("setPaused", !view.paused)}>
                       {view.paused ? "Resume" : "Pause"}
                     </button>
@@ -318,7 +324,11 @@ export function TableView({ view, skew, act, viewer = false, onHostControls }: P
               )}
             </div>
           )}
-          {control && playing && <span className="muted tv-hint">Space or → calls the next ball</span>}
+          {control && playing && (
+            <span className="muted tv-hint">
+              {machine ? "Tap each number on the board as it comes out of the machine" : "Space or → calls the next ball"}
+            </span>
+          )}
         </div>
 
         <div ref={boxRef} className="tv-pattern" style={patternStyle}>
@@ -351,7 +361,7 @@ export function TableView({ view, skew, act, viewer = false, onHostControls }: P
       </section>
 
       <section className="tv-board">
-        <BallBoard called={view.called} skip={skippedRows(view)} />
+        <BallBoard called={view.called} skip={skippedRows(view)} onPick={onPick} />
       </section>
 
       {showPicker && control && <PatternPicker view={view} act={act} onClose={() => setShowPicker(false)} />}

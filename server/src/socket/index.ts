@@ -282,6 +282,14 @@ export function registerSocketHandlers(io: IO, rooms: Rooms): void {
       room.requireCaller(id);
       return { ball: room.callNext() };
     });
+    on<number>("callBall", (room, id, ball) => {
+      room.requireCaller(id);
+      return { ball: room.callBall(Number(ball)) };
+    });
+    on<number>("uncallBall", (room, id, ball) => {
+      room.requireCaller(id);
+      room.uncallBall(Number(ball));
+    });
     on<boolean>("setPaused", (room, id, paused) => {
       room.requireCaller(id);
       room.setPaused(Boolean(paused));

@@ -47,6 +47,13 @@ export interface RoomSettings {
    * change mid-game takes effect on the next ball.
    */
   skipUnused: boolean;
+  /**
+   * Who draws the balls. "app": the server shuffles and calls them (Call next
+   * ball, auto-call). "machine": a physical ball machine or cage; the host taps
+   * each drawn number on the board to call it (and can take one back). Can
+   * change any time.
+   */
+  drawMode: DrawMode;
   /** Display only; can change any time. */
   layout: BoardLayout;
   ballAnimation: BallAnimation;
@@ -70,6 +77,7 @@ export interface RoomSettings {
 }
 
 export type BoardAlign = "top" | "center";
+export type DrawMode = "app" | "machine";
 export type BoardFit = "fit" | "fill";
 export type ThemeId = "midnight" | "daylight" | "hall" | "neon" | "ocean" | "sunset" | "contrast";
 
@@ -178,6 +186,7 @@ export const DEFAULT_SETTINGS: RoomSettings = {
   autoCall: false,
   autoCallSeconds: 8,
   skipUnused: true,
+  drawMode: "app",
   layout: "easy",
   ballAnimation: "fade",
   patternScale: 1,
@@ -341,6 +350,10 @@ export interface ClientToServerEvents {
   // host, or a Table display with control
   startGame: (ack: Ack) => void;
   callNext: (ack: Ack<{ ball: number }>) => void;
+  /** Ball-machine mode: call the number that was drawn from the machine. */
+  callBall: (ball: number, ack: Ack<{ ball: number }>) => void;
+  /** Ball-machine mode: take back a number called by mistake. */
+  uncallBall: (ball: number, ack: Ack) => void;
   setPaused: (paused: boolean, ack: Ack) => void;
   resolveClaim: (req: { claimId: string; confirm: boolean }, ack: Ack) => void;
   /** Ends the current game. startNext: deal and start the next one immediately. */
@@ -370,6 +383,10 @@ export const ERRORS = {
   ROOM_FULL: "This room is full.",
   WRONG_PHASE: "That can't be done right now.",
   NO_BALLS_LEFT: "There are no balls left to call for this pattern.",
+  MACHINE_MODE: "The balls come from the ball machine: tap the number that was drawn.",
+  NOT_MACHINE_MODE: "Switch to ball-machine mode to pick numbers yourself.",
+  ALREADY_CALLED: "That number has already been called.",
+  CLAIM_WAITING: "Check the waiting BINGO claim before taking a number back.",
   BAD_REQUEST: "Invalid request.",
   RATE_LIMITED: "Too many attempts. Wait a moment and try again.",
 } as const;

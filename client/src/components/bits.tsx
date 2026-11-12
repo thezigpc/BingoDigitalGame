@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type KeyboardEvent } from "react";
 import QRCode from "qrcode";
 import { joinUrl as venueJoinUrl, type VenueContext } from "@bargames/sdk/client";
 import { FREE_INDEX, LETTERS, letterFor, usedColumns, type Mask, type PatternView, type RoomView } from "@bingo/shared";
@@ -40,7 +40,8 @@ export function RecentBalls({ called, count = 5, size = "lg" }: { called: number
  */
 /** Board rows to dim: columns the pattern doesn't use, while skipping them. */
 export function skippedRows(view: RoomView): boolean[] | undefined {
-  if (view.phase !== "playing" || !view.settings.skipUnused) return undefined;
+  // A ball machine holds every ball, so nothing is skipped.
+  if (view.phase !== "playing" || !view.settings.skipUnused || view.settings.drawMode === "machine") return undefined;
   return usedColumns(view.pattern).map((u) => !u);
 }
 
@@ -48,24 +49,91 @@ export function BallBoard({
   called,
   compact = false,
   skip,
+  onPick,
 }: {
   called: number[];
   compact?: boolean;
   skip?: boolean[];
+  /** Ball-machine mode: the squares become buttons (call a number, or take it back). */
+  onPick?: (n: number) => void;
 }) {
   const set = new Set(called);
   const last = called[called.length - 1];
+  const pick = (n: number) =>
+    onPick
+      ? {
+          role: "button",
+          tabIndex: 0,
+          "aria-pressed": set.has(n),
+          "aria-label": `${ballLabel(n)}${set.has(n) ? ", called. Tap to take it back." : ""}`,
+          onClick: () => onPick(n),
+          onKeyDown: (e: KeyboardEvent) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              e.stopPropagation();
+              onPick(n);
+            }
+          },
+        }
+      : {};
   return (
-    <div className={`board ${compact ? "board-compact" : ""}`}>
+    <div className={`board ${compact ? "board-compact" : ""} ${onPick ? "pickable" : ""}`}>
       {LETTERS.map((letter, row) => (
         <div className="board-row" key={letter}>
           <div className={`board-letter col-${letter} ${skip?.[row] ? "skipped" : ""}`}>{letter}</div>
           {Array.from({ length: 15 }, (_, i) => {
             const n = row * 15 + i + 1;
             return (
-              <div key={n} className={`board-cell ${set.has(n) ? `lit col-${letter}` : ""} ${n === last ? "last" : ""} ${skip?.[row] && !set.has(n) ? "skipped" : ""}`}>
+              <div key={n} className={`board-cell ${set.has(n) ? `lit col-${letter}` : ""} ${n === last ? "last" : ""} ${skip?.[row] && !set.has(n) ? "skipped" : ""}`} {...pick(n)}>
                 {n}
               </div>
+            );
+          })}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** "B 12". */
+export const ballLabel = (n: number) => `${LETTERS[Math.floor((n - 1) / 15)]} ${n}`;
+
+/**
+ * Ball-machine mode: tapping a number calls it; tapping a called one takes it back
+ * (after a confirm, for a mis-tap).
+ */
+export function pickBall(called: number[], act: (event: "callBall" | "uncallBall", ball: number) => unknown) {
+  return (n: number) => {
+    if (!called.includes(n)) act("callBall", n);
+    else if (window.confirm(`Take back ${ballLabel(n)}? Use this if it was tapped by mistake.`)) act("uncallBall", n);
+  };
+}
+
+/**
+ * Ball-machine mode on a phone: B-I-N-G-O as five columns of big buttons, which are
+ * easier to hit than the 15-across board.
+ */
+export function BallPicker({ called, onPick }: { called: number[]; onPick: (n: number) => void }) {
+  const set = new Set(called);
+  const last = called[called.length - 1];
+  return (
+    <div className="ball-picker" role="group" aria-label="Tap the number drawn from the machine">
+      {LETTERS.map((letter, col) => (
+        <div className="picker-col" key={letter}>
+          <div className={`picker-head col-${letter}`}>{letter}</div>
+          {Array.from({ length: 15 }, (_, i) => {
+            const n = col * 15 + i + 1;
+            return (
+              <button
+                key={n}
+                type="button"
+                className={`picker-ball ${set.has(n) ? `lit col-${letter}` : ""} ${n === last ? "last" : ""}`}
+                aria-pressed={set.has(n)}
+                aria-label={`${ballLabel(n)}${set.has(n) ? ", called. Tap to take it back." : ""}`}
+                onClick={() => onPick(n)}
+              >
+                {n}
+              </button>
             );
           })}
         </div>
