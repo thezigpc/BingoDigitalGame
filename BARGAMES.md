@@ -226,6 +226,14 @@ a `WeakMap` inside `Room`, not on `ClaimView`, so the views sent to phones don't
   "← Box admin" goes to `venue.adminUrl`. Last round's path-prefix walk-through still
   passes under `/bingo` and at the root without the two workarounds.
 
+- **On the box (0.12.0):** Bingo 0.6.0 is installed. `venue.adminUrl` is the box admin's
+  address and answers, so "← Box admin" lands there.
+- **Next release, optional:** SDK 0.11.1+ mock box takes `--announce-show`,
+  `--announce-position` and sends a pretend `venue.adminUrl` (no more rewriting
+  `venue.json` in the test). SDK 0.11.2 and kit 0.7.1 also set a bottom strip's height
+  as `--bargames-announcement-bottom` on `<html>`, which could replace part of
+  `useAnnouncementSpace`. It doesn't cover a top strip, which Bingo also needs.
+
 ## Staff sign-in (SDK 0.7.0)
 
 Staff signed in to the box's admin open Bingo's settings (`routes.admin: "/admin"`)
