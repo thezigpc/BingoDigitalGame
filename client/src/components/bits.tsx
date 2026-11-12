@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import QRCode from "qrcode";
-import { joinUrl as venueJoinUrl, type VenueContext } from "@bargames/sdk/client";
+import type { VenueContext } from "@bargames/sdk/client";
+import { basePath } from "@bargames/gamekit/client";
 import { FREE_INDEX, LETTERS, letterFor, usedColumns, type Mask, type PatternView, type RoomView } from "@bingo/shared";
 
 /** isNew: the ball just drawn, which plays the room's draw animation. */
@@ -228,6 +229,9 @@ export function QrCode({ text, size = 160 }: { text: string; size?: number }) {
 /**
  * A room's join link (and QR code). On a Bar Games box it's on the venue's public
  * address, which a TV opened on an internal address wouldn't know; standalone it's
- * exactly `${location.origin}/join/${code}`, as before.
+ * `${location.origin}${basePath()}/join/${code}`, which at the root is exactly as before.
+ * Built here rather than with the SDK's client joinUrl(), which (0.10.0) uses
+ * new URL(path, base) and so drops a path prefix like /bingo.
  */
-export const joinUrl = (code: string, venue: VenueContext | null = null) => venueJoinUrl(venue, `/join/${code}`);
+export const joinUrl = (code: string, venue: VenueContext | null = null) =>
+  `${(venue?.game.publicUrl ?? `${location.origin}${basePath()}`).replace(/\/+$/, "")}/join/${code}`;

@@ -1,7 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
-import { ErrorBoundary, VenueAnnouncement } from "@bargames/gamekit/client";
+import { basePath, ErrorBoundary, VenueAnnouncement } from "@bargames/gamekit/client";
 import { AdminPage } from "./pages/AdminPage";
 import { HomePage } from "./pages/HomePage";
 import { RoomPage } from "./pages/RoomPage";
@@ -26,7 +26,8 @@ function Venue() {
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <ErrorBoundary>
-      <BrowserRouter>
+      {/* basePath(): "/bingo" under a path prefix, "" at the root. */}
+      <BrowserRouter basename={basePath()}>
         <Venue />
         <Routes>
           <Route path="/" element={<HomePage />} />

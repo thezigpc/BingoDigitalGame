@@ -1,3 +1,4 @@
+import { basePath } from "@bargames/gamekit/client";
 import { useEffect, useState } from "react";
 import {
   CUSTOM_PATTERN_ID,
@@ -427,7 +428,7 @@ function InvitePanel({ code }: { code: string }) {
  */
 function TablesPanel({ view, act, onShowBoard }: { view: RoomView; act: Act; onShowBoard: () => void }) {
   const [copied, setCopied] = useState(false);
-  const link = `${window.location.origin}/join/${view.code}?as=table&key=${encodeURIComponent(view.tableKey ?? "")}`;
+  const link = `${window.location.origin}${basePath()}/join/${view.code}?as=table&key=${encodeURIComponent(view.tableKey ?? "")}`;
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(link);

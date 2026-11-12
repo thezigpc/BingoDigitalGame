@@ -238,7 +238,7 @@ edit anything under GameBroker.
   `ClaimView.reason` and shows on that player's phone. Status lists `pendingClaims`
   (omitted when empty). Test casting with `npx bargames mock-box . --tv-pin 1234` (fake
   TVs) or `--no-cast`.
-- **SDK 0.4.0 and game kit 0.3.1**, now SDK 0.8.0 and kit 0.5.1 (2026-11-11, requested by the user):
+- **SDK 0.4.0 and game kit 0.3.1**, now SDK 0.10.0 and kit 0.6.0 (2026-11-11, requested by the user):
   - **The kit** (`vendor/bargames-gamekit-<ver>.tgz`, from the GitHub releases of
     `thezigpc/gamekit`, source in `C:\CodeProjects\GameKit`) owns Bingo's plumbing:
     logger, JSON and setting stores, admin auth and router, `RoomRegistry`,
@@ -280,6 +280,20 @@ edit anything under GameBroker.
     Kit 0.5.1 (Bingo 0.4.2) adds `onBox: bg.connected`: status gives `venueLogin` and
     `setupAllowed`, the page follows them, and only box-vouched staff may set a separate
     Bingo password on a box.
+  - **SDK 0.10.0 and kit 0.6.0** (Bingo 0.5.0, 2026-11-12): **runs under a path
+    prefix** (`https://<venue>/bingo/`, from `BG_BASE_PATH` or `BASE_PATH`; the proxy
+    strips it). The rules:
+    - The server serves the client with `serveSpa`, and Vite builds with `base: "./"`.
+    - `client/index.html` keeps `<base href="/" />`, or deep-link reloads at the root
+      break.
+    - Every fetch goes through `serverUrl` (`serverBase`). The socket uses
+      `path: socketPath()`, and the router `basename={basePath()}`.
+    - **Never write a bare `"/api/…"`, `window.location.origin + "/…"`, or
+      `new URL(path, base)`**: add `basePath()`. Don't use the SDK's client
+      `joinUrl()`, which drops the prefix.
+    - Storage keys must start with `bingo_`: every game shares the origin there.
+    - Test: start `npx bargames mock-box . --base /bingo` from PowerShell (Git Bash
+      mangles `/bingo`), then run the scratchpad `e2e-basepath.cjs`.
   - **Mock box cleanup:** stopping a backgrounded `npx bargames mock-box` can leave its
     node process holding the ports. Check `Get-NetTCPConnection -LocalPort <port>` and
     stop only processes whose command line is in this repo.

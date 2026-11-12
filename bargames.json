@@ -1,10 +1,11 @@
 {
   "id": "bingo",
   "name": "Bingo",
-  "version": "0.4.2",
-  "image": "ghcr.io/thezigpc/bingo:0.4.2",
+  "version": "0.5.0",
+  "image": "ghcr.io/thezigpc/bingo:0.5.0",
   "port": 3002,
-  "sdk": { "version": "0.8.0", "level": 3 },
+  "sdk": { "version": "0.10.0", "level": 3 },
+  "routing": { "basePath": true },
   "routes": {
     "player": "/",
     "table": "/join/{code}?as=table",

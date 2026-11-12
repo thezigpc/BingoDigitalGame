@@ -1,6 +1,5 @@
 import { createServer } from "http";
 import { existsSync } from "fs";
-import path from "path";
 import express from "express";
 import { Server } from "socket.io";
 import { DEFAULT_GAME_NAME } from "@bingo/shared";
@@ -10,7 +9,7 @@ import { adminAuth, adminRouter } from "./admin/routes.js";
 import { initAdminSettings } from "./admin/settings.js";
 import { registerSocketHandlers, type IO } from "./socket/index.js";
 import { bg, displayName, registerBarGames } from "./bargames.js";
-import { installShutdown, log, SOCKET_SERVER_OPTIONS } from "@bargames/gamekit/server";
+import { installShutdown, log, serveSpa, SOCKET_SERVER_OPTIONS } from "@bargames/gamekit/server";
 
 await initAdminSettings();
 await adminAuth.init();
@@ -43,8 +42,11 @@ app.get("/api/config", async (_req, res) => {
 });
 
 if (existsSync(CLIENT_DIST_PATH)) {
-  app.use(express.static(CLIENT_DIST_PATH, { index: false }));
-  app.get("*", (_req, res) => res.sendFile(path.join(CLIENT_DIST_PATH, "index.html")));
+  // The built client, with index.html for every page route. Under a path prefix
+  // (BG_BASE_PATH on a Bar Games box, BASE_PATH behind your own proxy, which strips it)
+  // the page gets <meta name="bargames-base"> and <base href="/<prefix>/">; at the root
+  // it's served unchanged.
+  serveSpa(app, { dist: CLIENT_DIST_PATH });
 } else {
   log.warn("boot", "client build not found; serving API only", { path: CLIENT_DIST_PATH });
 }

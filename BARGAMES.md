@@ -5,26 +5,29 @@ casting from the host screen (SDK 0.2.0), `confirm_claim` / `reject_claim` (SDK 
 the Rooms-page status fields, `tableMode` and venue join links (SDK 0.3.0), and
 "← All games", staff announcements and `joinPath` (SDK 0.4.0), and the shared-screen
 marker, `--venue-on-primary` and tableMode's wake lock (SDK 0.5.0), and staff sign-in
-and "first joiner hosts" (SDK 0.7.x), and the venue's admin password (SDK 0.8.0).
+and "first joiner hosts" (SDK 0.7.x), the venue's admin password (SDK 0.8.0), and
+running under a path prefix such as `https://<venue>/bingo/` (SDK 0.10.0).
 
-- **SDK:** 0.8.0, vendored at `vendor/bargames-sdk-0.8.0.tgz`.
-- **Game kit:** 0.5.1, vendored at `vendor/bargames-gamekit-0.5.1.tgz` (release v0.5.1 of
-  `thezigpc/gamekit`). See "Game kit" below.
-- **Manifest:** [bargames.json](bargames.json), Bingo `0.4.2`.
+- **SDK:** 0.10.0, vendored at `vendor/bargames-sdk-0.10.0.tgz`.
+- **Game kit:** 0.6.0, vendored at `vendor/bargames-gamekit-0.6.0.tgz` (the kit repo's
+  `dist-pack` build; no v0.6.0 GitHub release existed yet on 2026-11-12). See "Game kit"
+  below.
+- **Manifest:** [bargames.json](bargames.json), Bingo `0.5.0`, with
+  `"routing": { "basePath": true }`.
 
 ```
 $ npx bargames validate .
 ! image: not pinned by digest; releases should use image@sha256:…
-✓ bingo@0.4.2 (sdk level 3)
+✓ bingo@0.5.0 (sdk level 3)
 
 $ npx bargames check --game http://127.0.0.1:3005
-bingo@0.4.2 · level 3 · http://127.0.0.1:3005
+bingo@0.5.0 · level 3 · http://127.0.0.1:3005
 ✓ health /health → 200
 ✓ /__bargames/venue.json returns the box's branding ("Bingo (mock)")
 ✓ /__bargames/theme.css served
 ✓ "room_closed" declared (the box takes a closed room off the TVs at once)
 ✓ status refuses requests without the game token
-✓ status → 0 room(s)
+✓ status → 2 room(s)
 ✓ unknown commands are rejected
 ✓ command "start" is wired (and refuses a missing room)
 ✓ command "pause" is wired (and refuses a missing room)
@@ -33,19 +36,65 @@ bingo@0.4.2 · level 3 · http://127.0.0.1:3005
 ✓ command "end" is wired (and refuses a missing room)
 ✓ command "confirm_claim" is wired (and refuses a missing room)
 ✓ command "reject_claim" is wired (and refuses a missing room)
-✓ create_room → room EZAK (with hostUrl)
-✓ status lists EZAK as a venue room
-✓ table view /join/EZAK?as=table → 200
-✓ end closes EZAK
-✓ EZAK left status after "end"
+✓ create_room → room HACG (with hostUrl)
+✓ status lists HACG as a venue room
+✓ table view /join/HACG?as=table → 200
+✓ end closes HACG
+✓ HACG left status after "end"
 
 all checks passed
 ```
 
 The game ran on port 3005 for these checks because 3002 (the manifest port) is taken on
 the dev PC by the live dev site. Inside the container it's 3002, as the manifest says.
-Run on 2026-11-12 with SDK 0.8.0 and kit 0.5.1. The mock box ran with `--port 7081
---core-port 7198`, because another project's mock box held 7080 and 7199.
+Run on 2026-11-12 with SDK 0.10.0 and kit 0.6.0, with the game under `/bingo`
+(`BG_BASE_PATH=/bingo`). The mock box ran with `--base /bingo --port 7082 --core-port
+7197`, because other projects' mock boxes held 7080/7199 and 7081/7198. Start it from
+PowerShell: Git Bash rewrites `--base /bingo` into a Windows path
+(`C:/Program Files/Git/bingo`).
+
+## Under a path prefix (SDK 0.10.0, kit 0.6.0)
+
+The box is moving to one hostname per venue, with each game at `/<game>/`. The proxy
+(the box's gateway, or your own nginx) strips the prefix, so the server's routes don't
+change. Bingo learns the prefix from `BG_BASE_PATH` (box) or `BASE_PATH` (self-hosted).
+Unset, it runs at the root exactly as before.
+
+- **Server:** `serveSpa(app, { dist })` (kit) replaces the static files plus the
+  `index.html` catch-all. Under a prefix it injects `<meta name="bargames-base">` and
+  `<base href="/bingo/">`; at the root the HTML is unchanged.
+- **Build:** Vite `base: "./"`, so asset URLs are relative. `client/index.html` also
+  carries `<base href="/" />`, so a reload of a deep link at the root (`/room/ABCD`)
+  still finds `/assets/…`. The kit's injector adds nothing at the root, and without
+  that tag the browser would ask for `/room/assets/…`. Under a prefix the injected
+  `<base>` comes first, and the first one wins. The favicon link is relative too.
+- **Client:**
+  - `serverUrl` is `serverBase(dev)`, so every fetch (`/api/config`, `/api/admin/*`,
+    staff sign-in, venue context) carries the prefix.
+  - socket.io: `io(serverOrigin(dev), { ...SOCKET_OPTIONS, path: socketPath() })`.
+  - The router has `basename={basePath()}`.
+  - Join links and QR codes (`joinUrl` in `components/bits.tsx`) are built as
+    `<publicUrl or origin + basePath()>/join/<code>`. They don't use the SDK's client
+    `joinUrl()`, which drops the prefix (see SDK requests). The host's table link
+    adds `basePath()` too.
+- **One origin shared by every game:** every Bingo storage key starts with `bingo_`
+  (the kit's session store, plus `bingo_admin_token`). Bingo sets no cookies and has no
+  service worker.
+- **Server-built links:** `create_room`'s `hostUrl` and the status `joinPath` stay
+  game-relative paths (`/join/<code>…`), which the box puts under the game's address.
+- **Verified** (scratchpad `e2e-basepath.cjs`): the browser walk-through runs through
+  the mock gateway at `http://localhost:7082/bingo/`, and the same script runs at the
+  root with no prefix:
+  - Host from a phone, the invite link and QR, the host's table link (opens with
+    controls), and a player joining.
+  - Start, a call reaching the player, a deep-link reload keeping the seat, and
+    offline/online.
+  - `/admin` (Sign in), staff sign-in landing on the dashboard, and an unknown route
+    falling back to the home page.
+
+  Every WebSocket is `/bingo/socket.io/`. Not one request left the prefix, there were
+  no 4xx/5xx responses, and there were no page errors. A bare `/api/config` on the
+  gateway 404s, as it should.
 
 ## Where things live
 
@@ -453,6 +502,7 @@ have nothing to change.
   `npx bargames validate .` passes (`✓ bingo@0.4.0 (sdk level 3)`), with only the
   expected warning that the image isn't pinned by digest. 0.1.0, 0.2.1, 0.3.0 and 0.3.1
   are published and left alone.
+- **0.5.0: committed, not pushed.** Pushing to `main` runs the workflow and publishes it.
 - **0.4.2: published** ([run 43143298645](https://github.com/thezigpc/BingoDigitalGame/actions/runs/43143298645),
   2026-11-12); the anonymous pull of `ghcr.io/v2/thezigpc/bingo/manifests/0.4.2` returns **200**.
 - **0.4.1: published** ([run 43141690950](https://github.com/thezigpc/BingoDigitalGame/actions/runs/43141690950),
@@ -472,8 +522,8 @@ have nothing to change.
   checked to exist). That clears GitHub's Node 20 deprecation warning.
 - **Clean-checkout build:** Docker still isn't installed on the dev PC, so the CI run is
   the real test. Everything the image needs is committed, including
-  `vendor/bargames-sdk-0.8.0.tgz` and `vendor/bargames-gamekit-0.5.1.tgz`. The kit
-  tarball is the GitHub release asset, identical to the kit repo's own build. Neither
+  `vendor/bargames-sdk-0.10.0.tgz` and `vendor/bargames-gamekit-0.6.0.tgz`. The kit
+  tarball is the kit repo's `dist-pack` build (no v0.6.0 GitHub release yet). Neither
   build needs GitHub access.
 - **0.2.1: published** ([run 42934222401](https://github.com/thezigpc/BingoDigitalGame/actions/runs/42934222401),
   2026-11-11); the anonymous pull check returned **200**.
@@ -565,6 +615,20 @@ have nothing to change.
   copies or casts;
 - standalone, nothing is marked as a shared screen, and Bingo's wake lock runs as before;
 - `--accent-ink` reads `var(--venue-on-primary, <old value>)`.
+
+**Kit 0.6.0 and SDK 0.10.0 changes (Bingo 0.5.0):**
+- The static files and `index.html` now come from the kit's `serveSpa`:
+  - Hashed `/assets/*` files are cached for a year (`immutable`), and `index.html` is
+    sent with `no-cache`.
+  - Unknown `/api/*`, `/socket.io/*`, `/__bargames/*` and non-HTML requests now 404
+    instead of getting `index.html`.
+  - Pages a user sees are unchanged.
+- Asset and favicon URLs are relative, under `<base href="/">`.
+
+**Verified for 0.5.0:** 50 tests pass, `bargames check` passes under `/bingo`, the
+path-prefix walk-through passes both under the prefix and at the root, and the
+old-against-new browser flow against 0.4.2 (5ed28e8) differed **only in the random card
+numbers**.
 
 **Kit 0.5.1 changes (Bingo 0.4.2):** the admin status reply has `venueLogin` (false
 standalone) and `setupAllowed` (equal to `setupNeeded` standalone), and setup is refused
@@ -660,13 +724,20 @@ the staff sign-in browser check still passes, and the old-against-new browser fl
    `tableMode` (or a lighter `sharedScreen(true)`) told `<VenueAnnouncement>` directly,
    games wouldn't each have to wire it.
 
+7. **The client `joinUrl(ctx, path)` drops a path prefix** (0.10.0, `dist/client.js`):
+   it still does `new URL(path, ctx.game.publicUrl ?? location.origin)`. With
+   `publicUrl` `http://localhost:7082/bingo`, a join link comes out as
+   `http://localhost:7082/join/ABCD`; standalone under `BASE_PATH` it loses the prefix
+   too. The server's `publicUrl()` and base.ts's `joinUrl(base, path)` keep it. Bingo
+   builds its links itself for now.
+
 **Done since the last report (verified):** `create_room` (0.2.0), casting in the mock box
 with an unpaired TV (`fake-unpaired`, 0.3.0), claim commands (0.2.1), `bargames help`
 listing every command and the claim `--args`, and `check --room CODE` (0.3.0). That last
 one now validates a live Bingo room with a waiting claim: "1 pending claim(s), shape ok".
 `hostUrl` handling was answered (never logged or saved by the box).
 
-## Game kit (0.5.1)
+## Game kit (0.6.0)
 
 Bingo now uses the kit for its plumbing, adopted in the README's order (each step
 committed separately with the tests green):
@@ -681,7 +752,13 @@ committed separately with the tests green):
 Steps 3 and 4 went in together: the old `RoomManager` emitted the box events itself, so
 moving the registry without `wireBarGames` would have dropped them in between.
 
-**Kit requests:** all five are done in kit 0.3.2 and in use (see "Kit 0.3.2 and SDK
+**Kit request 6 (0.6.0), open:** `injectBasePath` leaves the HTML untouched at the
+root. A client built with Vite `base: "./"` (as the README says) then breaks on a reload
+of any deep link at the root (`/room/ABCD` asks for `/room/assets/…`), unless the game
+adds its own `<base href="/">` (Bingo does). Injecting `<base href="/">` at the root
+too, or a README note, would save every game the trap.
+
+**Kit requests 1-5:** all five are done in kit 0.3.2 and in use (see "Kit 0.3.2 and SDK
 0.5.0 changes" above). The original requests:
 1. **Claim refusals lose detail.** `wireBarGames` answers an unknown, already-decided or
    false-BINGO `claimId` with one message, "That claim isn't waiting any more." Before
