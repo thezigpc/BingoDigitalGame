@@ -23,6 +23,7 @@ const TVS = {
 async function fakeCore() {
   const events = [];
   const casts = [];
+  const passwordChecks = [];
   const srv = http.createServer((req, res) => {
     let body = "";
     req.on("data", (d) => (body += d));
@@ -31,6 +32,12 @@ async function fakeCore() {
       if (req.url === "/internal/events") {
         events.push(JSON.parse(body));
         return void res.writeHead(204).end();
+      }
+      if (req.url === "/internal/venue-password") {
+        const b = JSON.parse(body);
+        passwordChecks.push(b);
+        res.writeHead(200, { "content-type": "application/json" });
+        return void res.end(JSON.stringify({ ok: b.password === "box-password" }));
       }
       if (req.url === "/internal/displays") {
         res.writeHead(200, { "content-type": "application/json" });
@@ -67,6 +74,7 @@ async function fakeCore() {
     url: `http://127.0.0.1:${srv.address().port}`,
     events,
     casts,
+    passwordChecks,
     /** Events of one type for one room. */
     of: (type, code) => events.filter((e) => e.type === type && (!code || e.roomCode === code)),
     async waitFor(pred, label, ms = 5000) {
@@ -94,6 +102,12 @@ async function failJoins(url, headers, n) {
   socket.close();
   return last;
 }
+const adminLogin = (url, password) =>
+  fetch(`${url}/api/admin/login`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ password }),
+  });
 const RATE_LIMITED = /too many|slow down|try again/i;
 
 describe("standalone (no BG_* env)", () => {
@@ -125,6 +139,10 @@ describe("standalone (no BG_* env)", () => {
     assert.equal(st.trusted, false);
     const t = await fetch(`${server.url}/api/admin/trusted`, { method: "POST", headers: staff });
     assert.equal(t.status, 403);
+  });
+
+  test("the venue password: never accepted off a box", async () => {
+    assert.equal((await adminLogin(server.url, "box-password")).ok, false);
   });
 
   test("venue TVs: hidden (enabled false) and refused off a box; host only", async () => {
@@ -363,6 +381,32 @@ describe("on a box", () => {
     assert.equal(res.ok, true);
     const overview = await fetch(`${server.url}/api/admin/overview`, { headers: { authorization: `Bearer ${res.token}` } });
     assert.equal(overview.status, 200, "the staff session works like a password session");
+  });
+
+  test("the venue's admin password opens Bingo's admin, before and after Bingo has its own", async () => {
+    const asks = () => core.passwordChecks.length;
+    // No Bingo password yet: the box's password signs in; anything else doesn't.
+    assert.equal((await (await fetch(`${server.url}/api/admin/status`)).json()).setupNeeded, true);
+    assert.equal((await adminLogin(server.url, "nope")).ok, false);
+    const boxRes = await adminLogin(server.url, "box-password");
+    assert.equal(boxRes.status, 200);
+    const { token } = await boxRes.json();
+    assert.equal((await fetch(`${server.url}/api/admin/overview`, { headers: { authorization: `Bearer ${token}` } })).status, 200);
+    assert.equal(core.passwordChecks.at(-1).password, "box-password");
+    assert.ok(core.passwordChecks.at(-1).clientIp, "the box gets the client IP for its own limits");
+
+    // Bingo's own password: it doesn't ask the box. The box's still works too.
+    const setup = await fetch(`${server.url}/api/admin/setup`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ password: "bingo-own-password" }),
+    });
+    assert.equal(setup.status, 200);
+    const before = asks();
+    assert.equal((await adminLogin(server.url, "bingo-own-password")).status, 200);
+    assert.equal(asks(), before, "the box isn't asked when Bingo's password matches");
+    assert.equal((await adminLogin(server.url, "box-password")).status, 200);
+    assert.equal((await adminLogin(server.url, "wrong-password")).ok, false);
   });
 
   test("create_room with firstJoinerHosts: the first phone to join becomes the host", async () => {

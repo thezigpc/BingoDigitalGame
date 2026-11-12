@@ -21,6 +21,10 @@ export const adminAuth = createAdminAuth({
   // per-IP lockout would let any guest lock the real admin out; the kit's global cap
   // and capped delay still slow guessing. On a box each device has its own address.
   failsAllowed: onBox ? undefined : Infinity,
+  // On a box, the venue's own admin password opens this admin too, even before Bingo has a
+  // password (SDK 0.8.0). Asked only when Bingo's password doesn't match; the box limits
+  // guesses itself. Always false standalone.
+  venuePassword: (password, ip) => bg.checkVenuePassword(password, ip),
 });
 
 /** /api/admin/*: the kit's status, setup, login and logout, then Bingo's room list, close and settings. */

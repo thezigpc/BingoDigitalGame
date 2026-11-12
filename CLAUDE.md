@@ -238,7 +238,7 @@ edit anything under GameBroker.
   `ClaimView.reason` and shows on that player's phone. Status lists `pendingClaims`
   (omitted when empty). Test casting with `npx bargames mock-box . --tv-pin 1234` (fake
   TVs) or `--no-cast`.
-- **SDK 0.4.0 and game kit 0.3.1**, now SDK 0.7.1 and kit 0.4.0 (2026-11-11, requested by the user):
+- **SDK 0.4.0 and game kit 0.3.1**, now SDK 0.8.0 and kit 0.5.0 (2026-11-11, requested by the user):
   - **The kit** (`vendor/bargames-gamekit-<ver>.tgz`, from the GitHub releases of
     `thezigpc/gamekit`, source in `C:\CodeProjects\GameKit`) owns Bingo's plumbing:
     logger, JSON and setting stores, admin auth and router, `RoomRegistry`,
@@ -273,6 +273,13 @@ edit anything under GameBroker.
       The first phone to `joinRoom` as a player takes the host seat
       (`Room.claimHostSeat`).
     - **Casting:** the Venue TVs cast and stop use `slowCall` (30 s).
+  - **SDK 0.8.0 and kit 0.5.0** (Bingo 0.4.1, 2026-11-12): `createAdminAuth` takes
+    `venuePassword: bg.checkVenuePassword`, so the box's admin password opens `/admin`.
+    On a box with no Bingo password yet, `/admin` opens on Sign in, with a link to the
+    setup form. Mock box password: "box-password".
+  - **Mock box cleanup:** stopping a backgrounded `npx bargames mock-box` can leave its
+    node process holding the ports. Check `Get-NetTCPConnection -LocalPort <port>` and
+    stop only processes whose command line is in this repo.
   - **Join links and QR codes** use the SDK's `joinUrl(venue, path)`; identical
     standalone.
   - **Verify standalone** by building the previous commit in a worktree and diffing a

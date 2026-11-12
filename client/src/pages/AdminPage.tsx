@@ -9,6 +9,8 @@ import {
   type DisplaySettings,
 } from "@bingo/shared";
 import { staffSignIn } from "@bargames/gamekit/client";
+import { isOnBox } from "@bargames/sdk/client";
+import { useVenue } from "../useVenue";
 import { DisplayPicker } from "../components/DisplayPicker";
 import { serverUrl } from "../socket";
 
@@ -105,7 +107,13 @@ export function AdminPage() {
   );
 }
 
-function PasswordForm({ setup, onToken }: { setup: boolean; onToken: (t: string) => void }) {
+function PasswordForm({ setup: setupNeeded, onToken }: { setup: boolean; onToken: (t: string) => void }) {
+  // On a venue box, the box's admin password signs in here too (SDK 0.8.0), even before
+  // Bingo has a password of its own. So on a box the first screen is "Sign in", with a link
+  // to set a separate Bingo password instead. Standalone this is always false.
+  const onBox = isOnBox(useVenue());
+  const [ownPassword, setOwnPassword] = useState(false);
+  const setup = setupNeeded && (!onBox || ownPassword);
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
@@ -122,7 +130,10 @@ function PasswordForm({ setup, onToken }: { setup: boolean; onToken: (t: string)
       const r = await api<{ token: string }>(setup ? "/setup" : "/login", "", { method: "POST", body: { password } });
       onToken(r.token);
     } catch (err) {
-      setError((err as Error).message);
+      const msg = (err as Error).message;
+      // On a box with no Bingo password yet, a wrong venue password comes back as "not set
+      // up", which reads oddly next to "Use the venue's admin password."
+      setError(onBox && setupNeeded && !setup && /set up/i.test(msg) ? "That isn't the venue's admin password." : msg);
     } finally {
       setBusy(false);
     }
@@ -130,6 +141,13 @@ function PasswordForm({ setup, onToken }: { setup: boolean; onToken: (t: string)
   return (
     <form className="panel admin-login" onSubmit={submit}>
       <h2>{setup ? "Set the admin password" : "Sign in"}</h2>
+      {onBox && !setup && (
+        <p className="muted small">
+          {setupNeeded
+            ? "Use the venue's admin password."
+            : "Use this game's admin password, or the venue's admin password."}
+        </p>
+      )}
       {setup && (
         <p className="warning">
           No admin password has been set yet. Whoever sets it first becomes the admin, so do this now. It can't be
@@ -161,6 +179,18 @@ function PasswordForm({ setup, onToken }: { setup: boolean; onToken: (t: string)
       <button className="btn btn-primary btn-big" disabled={busy || password.length === 0}>
         {setup ? "Set password" : "Sign in"}
       </button>
+      {onBox && setupNeeded && (
+        <button
+          type="button"
+          className="btn btn-ghost"
+          onClick={() => {
+            setOwnPassword(!ownPassword);
+            setError("");
+          }}
+        >
+          {ownPassword ? "Sign in with the venue's password instead" : "Set a separate password for this game instead"}
+        </button>
+      )}
     </form>
   );
 }
