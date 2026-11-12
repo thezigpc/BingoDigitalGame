@@ -9,8 +9,6 @@ import {
   type DisplaySettings,
 } from "@bingo/shared";
 import { staffSignIn } from "@bargames/gamekit/client";
-import { isOnBox } from "@bargames/sdk/client";
-import { useVenue } from "../useVenue";
 import { DisplayPicker } from "../components/DisplayPicker";
 import { serverUrl } from "../socket";
 
@@ -53,13 +51,13 @@ function ago(ms: number): string {
 
 export function AdminPage() {
   const [token, setToken] = useState(loadToken);
-  const [status, setStatus] = useState<{ setupNeeded: boolean; authenticated: boolean; trusted?: boolean } | null>(null);
+  const [status, setStatus] = useState<AdminStatus | null>(null);
   const [error, setError] = useState("");
   // After a manual Sign out, don't sign venue staff straight back in on this page.
   const [signedOut, setSignedOut] = useState(false);
 
   const refreshStatus = useCallback(() => {
-    api<{ setupNeeded: boolean; authenticated: boolean; trusted?: boolean }>("/status", token)
+    api<AdminStatus>("/status", token)
       .then(async (s) => {
         // Venue staff (the box vouches for this browser, SDK 0.7.0): a session without the
         // password. Never true off a box, so standalone always shows the form.
@@ -101,19 +99,32 @@ export function AdminPage() {
       ) : status.authenticated ? (
         <Dashboard token={token} onSignOut={signOut} onExpired={() => signedIn("")} />
       ) : (
-        <PasswordForm setup={status.setupNeeded} onToken={signedIn} />
+        <PasswordForm status={status} onToken={signedIn} />
       )}
     </main>
   );
 }
 
-function PasswordForm({ setup: setupNeeded, onToken }: { setup: boolean; onToken: (t: string) => void }) {
+/** The kit's /api/admin/status (venueLogin and setupAllowed: kit 0.5.1, true only on a box). */
+interface AdminStatus {
+  setupNeeded: boolean;
+  authenticated: boolean;
+  trusted?: boolean;
+  venueLogin?: boolean;
+  setupAllowed?: boolean;
+}
+
+function PasswordForm({ status, onToken }: { status: AdminStatus; onToken: (t: string) => void }) {
+  const setupNeeded = status.setupNeeded;
   // On a venue box, the box's admin password signs in here too (SDK 0.8.0), even before
   // Bingo has a password of its own. So on a box the first screen is "Sign in", with a link
   // to set a separate Bingo password instead. Standalone this is always false.
-  const onBox = isOnBox(useVenue());
+  // venueLogin: the server is on a box, where its password opens this admin (kit 0.5.1).
+  // Only staff the box vouches for may set a separate Bingo password there (setupAllowed).
+  const onBox = status.venueLogin === true;
+  const canSetOwn = onBox && setupNeeded && status.setupAllowed === true;
   const [ownPassword, setOwnPassword] = useState(false);
-  const setup = setupNeeded && (!onBox || ownPassword);
+  const setup = setupNeeded && (!onBox || (canSetOwn && ownPassword));
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
@@ -179,7 +190,7 @@ function PasswordForm({ setup: setupNeeded, onToken }: { setup: boolean; onToken
       <button className="btn btn-primary btn-big" disabled={busy || password.length === 0}>
         {setup ? "Set password" : "Sign in"}
       </button>
-      {onBox && setupNeeded && (
+      {canSetOwn && (
         <button
           type="button"
           className="btn btn-ghost"

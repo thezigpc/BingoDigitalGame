@@ -238,7 +238,7 @@ edit anything under GameBroker.
   `ClaimView.reason` and shows on that player's phone. Status lists `pendingClaims`
   (omitted when empty). Test casting with `npx bargames mock-box . --tv-pin 1234` (fake
   TVs) or `--no-cast`.
-- **SDK 0.4.0 and game kit 0.3.1**, now SDK 0.8.0 and kit 0.5.0 (2026-11-11, requested by the user):
+- **SDK 0.4.0 and game kit 0.3.1**, now SDK 0.8.0 and kit 0.5.1 (2026-11-11, requested by the user):
   - **The kit** (`vendor/bargames-gamekit-<ver>.tgz`, from the GitHub releases of
     `thezigpc/gamekit`, source in `C:\CodeProjects\GameKit`) owns Bingo's plumbing:
     logger, JSON and setting stores, admin auth and router, `RoomRegistry`,
@@ -277,6 +277,9 @@ edit anything under GameBroker.
     `venuePassword: bg.checkVenuePassword`, so the box's admin password opens `/admin`.
     On a box with no Bingo password yet, `/admin` opens on Sign in, with a link to the
     setup form. Mock box password: "box-password".
+    Kit 0.5.1 (Bingo 0.4.2) adds `onBox: bg.connected`: status gives `venueLogin` and
+    `setupAllowed`, the page follows them, and only box-vouched staff may set a separate
+    Bingo password on a box.
   - **Mock box cleanup:** stopping a backgrounded `npx bargames mock-box` can leave its
     node process holding the ports. Check `Get-NetTCPConnection -LocalPort <port>` and
     stop only processes whose command line is in this repo.

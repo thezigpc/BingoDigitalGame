@@ -141,8 +141,11 @@ describe("standalone (no BG_* env)", () => {
     assert.equal(t.status, 403);
   });
 
-  test("the venue password: never accepted off a box", async () => {
+  test("the venue password: never accepted off a box, and setup works as before", async () => {
     assert.equal((await adminLogin(server.url, "box-password")).ok, false);
+    const st = await (await fetch(`${server.url}/api/admin/status`, { headers: { "x-bargames-via": "1", "x-bargames-staff": "1" } })).json();
+    assert.equal(st.venueLogin, false);
+    assert.equal(st.setupAllowed, st.setupNeeded, "standalone, whoever comes first may set the password");
   });
 
   test("venue TVs: hidden (enabled false) and refused off a box; host only", async () => {
@@ -386,7 +389,10 @@ describe("on a box", () => {
   test("the venue's admin password opens Bingo's admin, before and after Bingo has its own", async () => {
     const asks = () => core.passwordChecks.length;
     // No Bingo password yet: the box's password signs in; anything else doesn't.
-    assert.equal((await (await fetch(`${server.url}/api/admin/status`)).json()).setupNeeded, true);
+    const guestStatus = await (await fetch(`${server.url}/api/admin/status`)).json();
+    assert.equal(guestStatus.setupNeeded, true);
+    assert.equal(guestStatus.venueLogin, true, "the page offers the box password, not first-run setup");
+    assert.equal(guestStatus.setupAllowed, false, "a guest may not set Bingo's password on a box");
     assert.equal((await adminLogin(server.url, "nope")).ok, false);
     const boxRes = await adminLogin(server.url, "box-password");
     assert.equal(boxRes.status, 200);
@@ -395,13 +401,21 @@ describe("on a box", () => {
     assert.equal(core.passwordChecks.at(-1).password, "box-password");
     assert.ok(core.passwordChecks.at(-1).clientIp, "the box gets the client IP for its own limits");
 
+    // A guest on the venue Wi-Fi can't claim Bingo's admin; staff the box vouches for can
+    // set a separate password.
+    const setupAs = (headers) =>
+      fetch(`${server.url}/api/admin/setup`, {
+        method: "POST",
+        headers: { "content-type": "application/json", ...headers },
+        body: JSON.stringify({ password: "bingo-own-password" }),
+      });
+    assert.notEqual((await setupAs({ "x-bargames-via": "1" })).status, 200, "guest refused");
+    assert.equal((await (await fetch(`${server.url}/api/admin/status`)).json()).setupNeeded, true, "still unclaimed");
+    const staff = { "x-bargames-via": "1", "x-bargames-staff": "1" };
+    assert.equal((await (await fetch(`${server.url}/api/admin/status`, { headers: staff })).json()).setupAllowed, true);
+    assert.equal((await setupAs(staff)).status, 200);
+
     // Bingo's own password: it doesn't ask the box. The box's still works too.
-    const setup = await fetch(`${server.url}/api/admin/setup`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ password: "bingo-own-password" }),
-    });
-    assert.equal(setup.status, 200);
     const before = asks();
     assert.equal((await adminLogin(server.url, "bingo-own-password")).status, 200);
     assert.equal(asks(), before, "the box isn't asked when Bingo's password matches");

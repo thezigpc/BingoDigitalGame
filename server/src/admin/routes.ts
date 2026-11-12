@@ -25,6 +25,10 @@ export const adminAuth = createAdminAuth({
   // password (SDK 0.8.0). Asked only when Bingo's password doesn't match; the box limits
   // guesses itself. Always false standalone.
   venuePassword: (password, ip) => bg.checkVenuePassword(password, ip),
+  // On a box the venue's password takes over (kit 0.5.1): status says venueLogin, and only
+  // staff the box vouches for may set a separate Bingo password, so a guest on the venue
+  // Wi-Fi can't claim this admin. Standalone nothing changes.
+  onBox: bg.connected,
 });
 
 /** /api/admin/*: the kit's status, setup, login and logout, then Bingo's room list, close and settings. */

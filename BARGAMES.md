@@ -8,17 +8,17 @@ marker, `--venue-on-primary` and tableMode's wake lock (SDK 0.5.0), and staff si
 and "first joiner hosts" (SDK 0.7.x), and the venue's admin password (SDK 0.8.0).
 
 - **SDK:** 0.8.0, vendored at `vendor/bargames-sdk-0.8.0.tgz`.
-- **Game kit:** 0.5.0, vendored at `vendor/bargames-gamekit-0.5.0.tgz` (release v0.5.0 of
+- **Game kit:** 0.5.1, vendored at `vendor/bargames-gamekit-0.5.1.tgz` (release v0.5.1 of
   `thezigpc/gamekit`). See "Game kit" below.
-- **Manifest:** [bargames.json](bargames.json), Bingo `0.4.1`.
+- **Manifest:** [bargames.json](bargames.json), Bingo `0.4.2`.
 
 ```
 $ npx bargames validate .
 ! image: not pinned by digest; releases should use image@sha256:…
-✓ bingo@0.4.1 (sdk level 3)
+✓ bingo@0.4.2 (sdk level 3)
 
 $ npx bargames check --game http://127.0.0.1:3005
-bingo@0.4.1 · level 3 · http://127.0.0.1:3005
+bingo@0.4.2 · level 3 · http://127.0.0.1:3005
 ✓ health /health → 200
 ✓ /__bargames/venue.json returns the box's branding ("Bingo (mock)")
 ✓ /__bargames/theme.css served
@@ -44,7 +44,7 @@ all checks passed
 
 The game ran on port 3005 for these checks because 3002 (the manifest port) is taken on
 the dev PC by the live dev site. Inside the container it's 3002, as the manifest says.
-Run on 2026-11-12 with SDK 0.8.0 and kit 0.5.0. The mock box ran with `--port 7081
+Run on 2026-11-12 with SDK 0.8.0 and kit 0.5.1. The mock box ran with `--port 7081
 --core-port 7198`, because another project's mock box held 7080 and 7199.
 
 ## Where things live
@@ -171,19 +171,28 @@ above covers direct visits too.
   (`server/src/admin/routes.ts`). The kit asks the box only when Bingo's own password
   doesn't match, or when Bingo has none. The box limits guesses itself, using the client
   IP it's given. Standalone `checkVenuePassword` is always false.
-- **Client:** on a box, while Bingo has no password yet, `/admin` opens on **Sign in**
-  ("Use the venue's admin password.") instead of "Set the admin password". A link, "Set a
-  separate password for this game instead", switches to the setup form. With Bingo's own
+- **The box's password takes over (kit 0.5.1):** `createAdminAuth` also gets
+  `onBox: bg.connected`. On a box, `/api/admin/status` says `venueLogin: true`, and
+  `setupAllowed` is true only for staff the box vouches for. `/api/admin/setup` refuses
+  everyone else, so a guest on the venue Wi-Fi can't claim Bingo's admin.
+- **Client** (driven by those two fields, not by `isOnBox`): with `venueLogin`, `/admin`
+  opens on **Sign in** ("Use the venue's admin password.") instead of "Set the admin
+  password". The "Set a separate password for this game instead" link shows only when
+  `setupAllowed` (staff who signed out of the automatic staff session). With Bingo's own
   password set, the hint reads "Use this game's admin password, or the venue's admin
   password." A wrong password before setup says "That isn't the venue's admin password."
   (the kit's message there is "Admin isn't set up yet."). Standalone the page is unchanged.
-- **Tests:** on a box with no Bingo password, the box password signs in and the session
-  works on `/overview`, a wrong one doesn't, and the box receives the client IP. After
-  Bingo's own password is set, it signs in without asking the box, the box password still
-  works, and a wrong one doesn't. Standalone, "box-password" is refused.
-- **Mock box, in a browser** (box password "box-password"): Sign in is shown first; the
-  link toggles to the setup form and back; a wrong password shows the message above; the
-  box password opens the dashboard. The mock printed "box password refused", then
+- **Tests:** on a box with no Bingo password, status says `venueLogin: true` and
+  `setupAllowed: false`. The box password signs in and the session works on `/overview`,
+  a wrong one doesn't, and the box receives the client IP. A guest's setup is refused and
+  the admin stays unclaimed; staff see `setupAllowed: true` and can set Bingo's own
+  password. That password then signs in without asking the box, the box password still
+  works, and a wrong one doesn't. Standalone, "box-password" is refused, `venueLogin` is
+  false, and setup is allowed as before.
+- **Mock box, in a browser** (box password "box-password"): a guest gets Sign in with no
+  "separate password" link; a wrong password shows the message above; the box password
+  opens the dashboard. Staff land on the dashboard; after Sign out they see the link; after
+  the box's staff sign-out it's gone again. The mock printed "box password refused", then
   "box password accepted".
 
 ## First joiner hosts (SDK 0.7.0, fixed in 0.7.1)
@@ -444,6 +453,7 @@ have nothing to change.
   `npx bargames validate .` passes (`✓ bingo@0.4.0 (sdk level 3)`), with only the
   expected warning that the image isn't pinned by digest. 0.1.0, 0.2.1, 0.3.0 and 0.3.1
   are published and left alone.
+- **0.4.2: committed, not pushed.** Pushing to `main` runs the workflow and publishes it.
 - **0.4.1: published** ([run 43141690950](https://github.com/thezigpc/BingoDigitalGame/actions/runs/43141690950),
   2026-11-12); the anonymous pull of `ghcr.io/v2/thezigpc/bingo/manifests/0.4.1` returns **200**.
 - **0.4.0: published** ([run 43138773971](https://github.com/thezigpc/BingoDigitalGame/actions/runs/43138773971),
@@ -461,7 +471,7 @@ have nothing to change.
   checked to exist). That clears GitHub's Node 20 deprecation warning.
 - **Clean-checkout build:** Docker still isn't installed on the dev PC, so the CI run is
   the real test. Everything the image needs is committed, including
-  `vendor/bargames-sdk-0.8.0.tgz` and `vendor/bargames-gamekit-0.5.0.tgz`. The kit
+  `vendor/bargames-sdk-0.8.0.tgz` and `vendor/bargames-gamekit-0.5.1.tgz`. The kit
   tarball is the GitHub release asset, identical to the kit repo's own build. Neither
   build needs GitHub access.
 - **0.2.1: published** ([run 42934222401](https://github.com/thezigpc/BingoDigitalGame/actions/runs/42934222401),
@@ -555,6 +565,14 @@ have nothing to change.
 - standalone, nothing is marked as a shared screen, and Bingo's wake lock runs as before;
 - `--accent-ink` reads `var(--venue-on-primary, <old value>)`.
 
+**Kit 0.5.1 changes (Bingo 0.4.2):** the admin status reply has `venueLogin` (false
+standalone) and `setupAllowed` (equal to `setupNeeded` standalone), and setup is refused
+only when `venueLogin` is true. So standalone, first-run setup works exactly as before.
+
+**Verified for 0.4.2:** 50 tests pass, `bargames check` passes, the staff and venue
+password browser checks pass, and the old-against-new browser flow against 0.4.1
+(3ff4cef) differed **only in the random card numbers**.
+
 **Kit 0.5.0 and SDK 0.8.0 changes (Bingo 0.4.1):**
 - admin login asks the box's password check only after Bingo's own check fails; off a box
   that check is always false, so a wrong password fails exactly as before;
@@ -647,7 +665,7 @@ listing every command and the claim `--args`, and `check --room CODE` (0.3.0). T
 one now validates a live Bingo room with a waiting claim: "1 pending claim(s), shape ok".
 `hostUrl` handling was answered (never logged or saved by the box).
 
-## Game kit (0.5.0)
+## Game kit (0.5.1)
 
 Bingo now uses the kit for its plumbing, adopted in the README's order (each step
 committed separately with the tests green):
