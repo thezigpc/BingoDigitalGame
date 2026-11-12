@@ -725,7 +725,8 @@ the staff sign-in browser check still passes, and the old-against-new browser fl
    `tableMode` (or a lighter `sharedScreen(true)`) told `<VenueAnnouncement>` directly,
    games wouldn't each have to wire it.
 
-7. **The client `joinUrl(ctx, path)` drops a path prefix** (0.10.0, `dist/client.js`):
+7. **Fixed in 0.10.2 (not adopted yet; Bingo's own links still work).** The client
+   `joinUrl(ctx, path)` dropped a path prefix (0.10.0, `dist/client.js`):
    it still does `new URL(path, ctx.game.publicUrl ?? location.origin)`. With
    `publicUrl` `http://localhost:7082/bingo`, a join link comes out as
    `http://localhost:7082/join/ABCD`; standalone under `BASE_PATH` it loses the prefix
@@ -753,7 +754,9 @@ committed separately with the tests green):
 Steps 3 and 4 went in together: the old `RoomManager` emitted the box events itself, so
 moving the registry without `wireBarGames` would have dropped them in between.
 
-**Kit request 6 (0.6.0), open:** `injectBasePath` leaves the HTML untouched at the
+**Kit request 6 (0.6.0), fixed in kit 0.6.1 and SDK 0.10.2 (not adopted yet):** at the
+root they now add `<base href="/">` unless the page has one, so Bingo's own tag can go
+when Bingo moves to them. The original request: `injectBasePath` leaves the HTML untouched at the
 root. A client built with Vite `base: "./"` (as the README says) then breaks on a reload
 of any deep link at the root (`/room/ABCD` asks for `/room/assets/…`), unless the game
 adds its own `<base href="/">` (Bingo does). Injecting `<base href="/">` at the root
