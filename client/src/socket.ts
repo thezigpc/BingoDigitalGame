@@ -11,15 +11,11 @@ export const serverUrl = serverOrigin({ vitePort: 5174, serverPort: 3002 });
 // long-polling, then upgrade), events emitted right after page load rode the polling
 // transport and were intermittently lost through the Cloudflare Tunnel: the join form's
 // ack timed out and the server never saw the event. Polling stays as a fallback.
-export const socket: Socket<ServerToClientEvents, ClientToServerEvents> = io(serverUrl, {
-  ...SOCKET_OPTIONS,
-  transports: [...SOCKET_OPTIONS.transports],
-});
+export const socket: Socket<ServerToClientEvents, ClientToServerEvents> = io(serverUrl, SOCKET_OPTIONS);
 
-/** The kit's untyped call, for kit hooks that take one (useRoomConnection). */
-export const rawCall = createCall(socket as unknown as Parameters<typeof createCall>[0]);
+const kitCall = createCall(socket as unknown as Parameters<typeof createCall>[0]);
 
 /** Emit with an ack as a promise. Rejects with the server's error message. */
 export function call<T = object>(event: keyof ClientToServerEvents, ...args: unknown[]): Promise<T> {
-  return rawCall<T>(event, ...args);
+  return kitCall<T>(event, ...args);
 }

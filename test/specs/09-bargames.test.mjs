@@ -242,7 +242,7 @@ describe("on a box", () => {
     assert.equal(host.closedReason, "The host ended this room.");
     assert.equal(players[0].closedReason, "The host ended this room.");
     assert.equal((await command("end", code)).ok, false, "already gone");
-    await core.waitFor((e) => e.type === "room_closed" && e.roomCode === code && e.data.reason === "admin", "room_closed");
+    await core.waitFor((e) => e.type === "room_closed" && e.roomCode === code && e.data.reason === "host", "room_closed");
   });
 
   test("events: created, players (debounced), round, claim, winner, round end", async () => {
@@ -441,7 +441,7 @@ describe("on a box", () => {
     assert.equal(win.data.name, "Ann");
     const again = await cmd("reject_claim", code, { claimId: pending[0].id });
     assert.equal(again.ok, false, "already decided");
-    assert.match(again.message, /isn't waiting/);
+    assert.match(again.message, /^That BINGO claim isn't waiting any more: it was already confirmed or turned down/, "Bingo's own words");
     assert.deepEqual((await statusOf()).pendingClaims.map((c) => c.player), ["Bo"]);
 
     // reject_claim by id, with a reason the player sees.
@@ -450,7 +450,9 @@ describe("on a box", () => {
     assert.equal(boView.claims.find((c) => c.id === pending[1].id).reason, "Card was checked: not this pattern");
     assert.match((await cmd("confirm_claim", code, { claimId: pending[1].id })).message, /isn't waiting/);
     assert.equal((await statusOf()).pendingClaims, undefined, "nothing waiting");
-    assert.equal((await cmd("confirm_claim", code)).ok, false, "omitted claimId, nothing waiting");
+    const none = await cmd("confirm_claim", code);
+    assert.equal(none.ok, false, "omitted claimId, nothing waiting");
+    assert.equal(none.message, "No BINGO claim is waiting in this room.");
   });
 
   test("the host's own Dismiss sends no reason (unchanged)", async () => {

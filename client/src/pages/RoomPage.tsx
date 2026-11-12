@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRoomConnection } from "@bargames/gamekit/client";
-import { isOnBox, tableMode, type TableModeController } from "@bargames/sdk/client";
+import { isOnBox, markSharedScreen, tableMode, type TableModeController } from "@bargames/sdk/client";
 import type { RoomView } from "@bingo/shared";
 import { toggleFullscreen } from "../fullscreen";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { call, rawCall, socket } from "../socket";
+import { call, socket } from "../socket";
 import { clearSession, getBigScreen, sessions, setBigScreen, type StoredSession } from "../session";
-import { setSharedScreen } from "../sharedScreen";
 import { useVenue } from "../useVenue";
 import { HostView } from "./HostView";
 import { PlayerView } from "./PlayerView";
@@ -40,7 +39,7 @@ export function RoomPage() {
   // binding (the CAHDigitalGame reconnect-desync bug).
   const { view, status, closedReason, skew, reconnect } = useRoomConnection<RoomView, StoredSession>(upper, {
     socket: socket as unknown as Parameters<typeof useRoomConnection>[1]["socket"],
-    call: rawCall,
+    call,
     sessions,
   });
   const { act, toast, setToast } = useAction();
@@ -63,20 +62,12 @@ export function RoomPage() {
     };
   }, [theme]);
 
-  // A TV / shared screen (a Table, or the host's own big-screen board): no staff
-  // announcement strip there.
-  const role = view?.you.role;
-  const sharedScreen = role === "table" || (role === "host" && bigScreen);
-  useEffect(() => {
-    setSharedScreen(sharedScreen);
-    return () => setSharedScreen(false);
-  }, [sharedScreen]);
-
   // Bar Games box TV (a display-only Table on a box): the SDK's tableMode hides the
   // pointer, keeps the screen awake, sets the 5% safe margins (--bg-safe-x/y, used by
   // .tv) and shows the standard "Reconnecting…" / "Room closed" banner. Off a box, or
   // on any screen that can run the game, nothing changes.
   const venue = useVenue();
+  const role = view?.you.role;
   const boxTv = isOnBox(venue) && role === "table" && !view?.you.canControl;
   const tm = useRef<TableModeController | null>(null);
   useEffect(() => {
@@ -89,6 +80,12 @@ export function RoomPage() {
     // The venue context refreshes every 30 s; tableMode only needs it once.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [boxTv]);
+  // Any other TV / shared screen on a box (a Table that can call numbers, or the host's
+  // own big-screen board) is marked as one too, so the staff announcement strip hides
+  // itself (tableMode marks the box TV). Off a box nothing is marked (rule 1).
+  const onBox = isOnBox(venue);
+  const sharedScreen = onBox && !boxTv && (role === "table" || (role === "host" && bigScreen));
+  useEffect(() => (sharedScreen ? markSharedScreen() : undefined), [sharedScreen]);
   useEffect(() => {
     tm.current?.setState(closedReason ? "closed" : status === "offline" ? "reconnecting" : "connected", closedReason ?? undefined);
   }, [boxTv, status, closedReason]);

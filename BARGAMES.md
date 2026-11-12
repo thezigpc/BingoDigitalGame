@@ -3,20 +3,21 @@
 **Level reached: 3** (hosted, branded, connected, controllable), plus `create_room` and
 casting from the host screen (SDK 0.2.0), `confirm_claim` / `reject_claim` (SDK 0.2.1),
 the Rooms-page status fields, `tableMode` and venue join links (SDK 0.3.0), and
-"← All games", staff announcements and `joinPath` (SDK 0.4.0).
+"← All games", staff announcements and `joinPath` (SDK 0.4.0), and the shared-screen
+marker, `--venue-on-primary` and tableMode's wake lock (SDK 0.5.0).
 
-- **SDK:** 0.4.0, vendored at `vendor/bargames-sdk-0.4.0.tgz`.
-- **Game kit:** 0.3.1, vendored at `vendor/bargames-gamekit-0.3.1.tgz` (release v0.3.1 of
+- **SDK:** 0.5.0, vendored at `vendor/bargames-sdk-0.5.0.tgz`.
+- **Game kit:** 0.3.2, vendored at `vendor/bargames-gamekit-0.3.2.tgz` (release v0.3.2 of
   `thezigpc/gamekit`). See "Game kit" below.
-- **Manifest:** [bargames.json](bargames.json), Bingo `0.3.0`.
+- **Manifest:** [bargames.json](bargames.json), Bingo `0.3.1`.
 
 ```
 $ npx bargames validate .
 ! image: not pinned by digest; releases should use image@sha256:…
-✓ bingo@0.3.0 (sdk level 3)
+✓ bingo@0.3.1 (sdk level 3)
 
 $ npx bargames check --game http://127.0.0.1:3005
-bingo@0.3.0 · level 3 · http://127.0.0.1:3005
+bingo@0.3.1 · level 3 · http://127.0.0.1:3005
 ✓ health /health → 200
 ✓ /__bargames/venue.json returns the box's branding ("Bingo (mock)")
 ✓ /__bargames/theme.css served
@@ -31,18 +32,19 @@ bingo@0.3.0 · level 3 · http://127.0.0.1:3005
 ✓ command "end" is wired (and refuses a missing room)
 ✓ command "confirm_claim" is wired (and refuses a missing room)
 ✓ command "reject_claim" is wired (and refuses a missing room)
-✓ create_room → room CCFK (with hostUrl)
-✓ status lists CCFK as a venue room
-✓ table view /join/CCFK?as=table → 200
-✓ end closes CCFK
-✓ CCFK left status after "end"
+✓ create_room → room WVQU (with hostUrl)
+✓ status lists WVQU as a venue room
+✓ table view /join/WVQU?as=table → 200
+✓ end closes WVQU
+✓ WVQU left status after "end"
 
 all checks passed
 ```
 
 The game ran on port 3005 for these checks because 3002 (the manifest port) is taken on
 the dev PC by the live dev site. Inside the container it's 3002, as the manifest says.
-The check was run with the version still at 0.2.1; only the version line changes.
+Run on 2026-11-11 with SDK 0.5.0 and kit 0.3.2. The mock box ran with `--port 7081
+--core-port 7198`, because another project's mock box held 7080 and 7199.
 
 ## Where things live
 
@@ -54,9 +56,9 @@ The check was run with the version still at 0.2.1; only the version line changes
 | `server/src/index.ts` | `app.use(bg.middleware())` before `/api` and the SPA catch-all; `/api/config` returns the venue's name on a box; the kit's `installShutdown` (flushes events) |
 | `server/src/admin/` | The kit's admin auth and router (`routes.ts`) and setting store (`settings.ts`) |
 | `server/src/socket/index.ts` | Host-only cast intents `listTvs`, `castToTvs`, `stopTvs` |
-| `client/src/main.tsx` | The kit's `ErrorBoundary`; `<VenueAnnouncement>` once at the root (hidden on TVs) |
+| `client/src/main.tsx` | The kit's `ErrorBoundary`; `<VenueAnnouncement>` once at the root (it hides itself on shared screens) |
 | `client/src/pages/HomePage.tsx` | `<BackToGames>` at the bottom of the landing page |
-| `client/src/pages/RoomPage.tsx` | The kit's `useRoomConnection`; `tableMode` on a box TV; tells the root when the page is a shared screen (`sharedScreen.ts`) |
+| `client/src/pages/RoomPage.tsx` | The kit's `useRoomConnection`; `tableMode` on a box TV; the SDK's `markSharedScreen()` on any other TV screen on a box |
 | `client/src/components/bits.tsx` | `joinUrl(code, venue)`: the SDK's `joinUrl`, so links and QR codes use the venue's address on a box |
 | `client/src/components/TvsPanel.tsx` | The host's "Venue TVs" control (box only) |
 | `client/src/index.css` | `--venue-*` mapped onto the chrome tokens (top); `.tv` padding takes `--bg-safe-x/y` |
@@ -101,8 +103,8 @@ then `room.broadcast()`, exactly like the socket `on(...)` wrapper.
 | `pause` | `room.setPaused(true)` | Unknown room. Not playing. Already paused. |
 | `resume` | `room.setPaused(false)` | Unknown room. Not playing. Not paused. |
 | `next_round` | `room.newGame(true)` (the host's **New game**: ends this game, deals and starts the next) | Unknown room. Not playing (use `start` from the lobby). |
-| `end` | The kit closes the room with Bingo's `endReason`, "The host ended this room." (the host's **Close room** text), cause `"admin"` | Unknown room. |
-| `confirm_claim` | `room.resolveClaim(id, true)` (the host's **Confirm winner**) | Unknown room. No claim waiting ("No claim is waiting in this room."). A `claimId` that isn't waiting: unknown, already decided (the host's phone may have got there first), or a false BINGO ("That claim isn't waiting any more."). |
+| `end` | The kit closes the room with Bingo's `endReason`, "The host ended this room." (the host's **Close room** text), cause `"host"` (`endCause`, kit 0.3.2) | Unknown room. |
+| `confirm_claim` | `room.resolveClaim(id, true)` (the host's **Confirm winner**) | Unknown room. No claim waiting: "No BINGO claim is waiting in this room." A `claimId` that isn't waiting: "That BINGO claim isn't waiting any more: it was already confirmed or turned down (the host's phone may have got there first), or it wasn't a valid BINGO." Both are Bingo's own words (`claimMessages`, kit 0.3.2); a test checks them. |
 | `reject_claim` | `room.resolveClaim(id, false, reason)` (the host's **Dismiss**) | Same as `confirm_claim`. |
 
 **Claims (SDK 0.2.1).** `args` is `ClaimArgs { claimId?, reason? }`. With no `claimId`
@@ -258,7 +260,10 @@ The kit's `wireBarGames` registers it; Bingo's `createVenueRoom` option
         "Reconnecting…", and a closed room shows a full-screen closed banner with the
         game's reason. After the box's `end`, the mock-box TV showed
         "closed: The host ended this room." The game's own reconnect banner is hidden
-        there so the two don't stack. Bingo's own wake lock still runs too (harmless).
+        there so the two don't stack. **Wake lock (SDK 0.5.0):** `tableMode` holds it, so
+        Bingo's own wake lock is off on a box TV and runs everywhere else, standalone
+        included. Checked with a stubbed `navigator.wakeLock`: one request on the box TV
+        (the SDK's), and one from Bingo when the host lets that TV call numbers.
         The host's own big-screen board and a controlling Table don't get `tableMode`:
         people use those with a pointer or touch.
 - [x] **Light on animation.** Only a short animation on each newly drawn ball (fade by
@@ -287,14 +292,21 @@ All of it renders nothing off a box.
 - **Staff announcements:** the kit's `<VenueAnnouncement>`, once at the root
   (`client/src/main.tsx:23`), so it's on **every phone page**: landing, join, the host's
   and players' room screens, paper-mode viewers, and `/admin`.
-  - **Hidden** on a TV or shared screen, using the kit 0.3.1 `hidden` prop: a Table,
-    the host's own big-screen board (they're the same URL as a phone room page, so
-    `RoomPage` tells the root through `sharedScreen.ts`), and a `?as=table` link while it
-    joins.
+  - **Hidden** on a TV or shared screen (SDK 0.5.0). The page is marked
+    `<html data-bargames-screen="shared">`, and the strip hides itself there:
+    - a box TV: `tableMode` marks it;
+    - a Table that can call numbers, or the host's own big-screen board (the same URL as
+      a phone room page): `RoomPage` calls `markSharedScreen()`, on a box only;
+    - a `?as=table` link while it joins: still the `hidden` prop, until the room page
+      takes over.
+
+    Bingo's own `sharedScreen.ts` is gone.
   - **Checked through the mock gateway** with `--announce "Last call at 1:30"`:
     - shown on the landing, join, host, player and admin pages;
     - **Dismiss** hides it;
     - not on the box TV, and not on the host's big-screen board;
+    - still hidden when the host lets the box TV call numbers (tableMode stops and the
+      plain marker takes over), and again when that's turned off;
     - back on the host controls when the host flips back to them.
 - **"← All games" with "Also playing":** the kit's `<BackToGames>` at the very bottom of the
   landing page (`client/src/pages/HomePage.tsx:207`), which also serves `/join/{code}`
@@ -322,6 +334,7 @@ fallback):
 | `--venue-surface` | `--panel` |
 | `--venue-text` | `--text` |
 | `--venue-primary` | `--accent` (Bingo's gold: primary buttons, highlights, room code) |
+| `--venue-on-primary` (SDK 0.5.0) | `--accent-ink`, the text on `--accent` (primary buttons). The mock box's `#111111` reached the buttons. |
 | `--venue-radius` | `--radius` |
 | `--venue-font` | the root `font-family` |
 
@@ -366,10 +379,11 @@ have nothing to change.
 
 ## Image
 
-- **Name:** `ghcr.io/thezigpc/bingo:0.3.0`, bumped together with `version` 0.3.0.
-  `npx bargames validate .` passes (`✓ bingo@0.3.0 (sdk level 3)`), with only the
-  expected warning that the image isn't pinned by digest. 0.1.0 and 0.2.1 are published
-  and left alone.
+- **Name:** `ghcr.io/thezigpc/bingo:0.3.1`, bumped together with `version` 0.3.1.
+  `npx bargames validate .` passes (`✓ bingo@0.3.1 (sdk level 3)`), with only the
+  expected warning that the image isn't pinned by digest. 0.1.0, 0.2.1 and 0.3.0 are
+  published and left alone.
+- **0.3.1: committed, not pushed.** Pushing to `main` runs the workflow and publishes it.
 - **0.3.0: published.** The "Publish image" workflow
   ([run 43109672367](https://github.com/thezigpc/BingoDigitalGame/actions/runs/43109672367),
   2026-11-11) went green on the new action versions, with no Node 20 warning. That's the
@@ -381,7 +395,7 @@ have nothing to change.
   checked to exist). That clears GitHub's Node 20 deprecation warning.
 - **Clean-checkout build:** Docker still isn't installed on the dev PC, so the CI run is
   the real test. Everything the image needs is committed, including
-  `vendor/bargames-sdk-0.4.0.tgz` and `vendor/bargames-gamekit-0.3.1.tgz`. The kit
+  `vendor/bargames-sdk-0.5.0.tgz` and `vendor/bargames-gamekit-0.3.2.tgz`. The kit
   tarball is the GitHub release asset, identical to the kit repo's own build. Neither
   build needs GitHub access.
 - **0.2.1: published** ([run 42934222401](https://github.com/thezigpc/BingoDigitalGame/actions/runs/42934222401),
@@ -466,7 +480,22 @@ have nothing to change.
 - **New box-only pieces:** `tableMode`, `<VenueAnnouncement>`, `<BackToGames>`, venue join
   links, and `.tv`'s safe-margin padding (identical when the variables are unset).
 
-**Verified:**
+**Kit 0.3.2 and SDK 0.5.0 changes (Bingo 0.3.1):**
+- `players_changed` no longer fires when a join and a leave cancel out, and no timer runs
+  standalone (the kit listens only when `bg.connected`);
+- `end` reports cause `"host"` again, and the claim refusals use Bingo's words;
+- `io(url, SOCKET_OPTIONS)` and Bingo's typed `call` go straight to the kit, with no
+  copies or casts;
+- standalone, nothing is marked as a shared screen, and Bingo's wake lock runs as before;
+- `--accent-ink` reads `var(--venue-on-primary, <old value>)`.
+
+**Verified for 0.3.1:**
+- 45 tests pass, and `bargames check` passes.
+- The same old-against-new browser flow, run against the pushed 0.3.0 (e7a02c7), with
+  wake-lock requests and the shared-screen attribute added to the comparison. It again
+  differed **only in the random card numbers**.
+
+**Verified (0.3.0):**
 - **Tests:** 45 pass. The pre-Bar-Games tests are unchanged except one admin check,
   which now looks at the status fields Bingo uses instead of the whole reply. New admin
   tests: an `admin.json` written by Bingo's old code still logs in; and 11 wrong guesses
@@ -510,16 +539,16 @@ have nothing to change.
    `--panel-2`, `--line` and `--muted`, which stay navy on a teal venue. Standalone-safe
    `--venue-surface-2`, `--venue-border` and `--venue-muted`, computed by the box from
    the venue colors, would let them follow.
-3. **An "on-primary" text color** (`--venue-primary-ink`). Bingo's primary buttons use a
+3. **Done in 0.5.0.** An "on-primary" text color (`--venue-primary-ink`). Bingo's primary buttons use a
    fixed dark ink, so a dark venue primary would give poor button contrast. The kit's
    `<VenueAnnouncement>` has the same issue: it's fixed `#111` text on `--venue-primary`.
 4. **Room persistence:** rooms are in memory, so a box-initiated container restart (an
    update, or the memory limit) closes every room, with `room_closed` `reason:
    "shutdown"` sent first. The box can re-create a venue room with `create_room`, but it
    gets a new code, so it would have to re-cast it and players would rejoin.
-5. **`tableMode` and the game's own wake lock:** both run on a box TV. A note in step 7
+5. **Done in 0.5.0.** `tableMode` and the game's own wake lock: both run on a box TV. A note in step 7
    on whether games should drop theirs on a box would settle it.
-6. **A shared-screen signal in the SDK.** Bingo needed a small module of its own so the
+6. **Done in 0.5.0.** A shared-screen signal in the SDK. Bingo needed a small module of its own so the
    root's announcement strip knows when a room page is acting as a TV. If
    `tableMode` (or a lighter `sharedScreen(true)`) told `<VenueAnnouncement>` directly,
    games wouldn't each have to wire it.
@@ -530,7 +559,7 @@ listing every command and the claim `--args`, and `check --room CODE` (0.3.0). T
 one now validates a live Bingo room with a waiting claim: "1 pending claim(s), shape ok".
 `hostUrl` handling was answered (never logged or saved by the box).
 
-## Game kit (0.3.1)
+## Game kit (0.3.2)
 
 Bingo now uses the kit for its plumbing, adopted in the README's order (each step
 committed separately with the tests green):
@@ -545,7 +574,8 @@ committed separately with the tests green):
 Steps 3 and 4 went in together: the old `RoomManager` emitted the box events itself, so
 moving the registry without `wireBarGames` would have dropped them in between.
 
-**Kit requests** (where it didn't quite fit Bingo; nothing was worked around):
+**Kit requests:** all five are done in kit 0.3.2 and in use (see "Kit 0.3.2 and SDK
+0.5.0 changes" above). The original requests:
 1. **Claim refusals lose detail.** `wireBarGames` answers an unknown, already-decided or
    false-BINGO `claimId` with one message, "That claim isn't waiting any more." Before
    the kit, Bingo told staff "already confirmed" / "already turned down" (the host's

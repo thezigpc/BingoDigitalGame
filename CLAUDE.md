@@ -238,7 +238,7 @@ edit anything under GameBroker.
   `ClaimView.reason` and shows on that player's phone. Status lists `pendingClaims`
   (omitted when empty). Test casting with `npx bargames mock-box . --tv-pin 1234` (fake
   TVs) or `--no-cast`.
-- **SDK 0.4.0 and game kit 0.3.1** (2026-11-11, requested by the user):
+- **SDK 0.4.0 and game kit 0.3.1**, now SDK 0.5.0 and kit 0.3.2 (2026-11-11, requested by the user):
   - **The kit** (`vendor/bargames-gamekit-<ver>.tgz`, from the GitHub releases of
     `thezigpc/gamekit`, source in `C:\CodeProjects\GameKit`) owns Bingo's plumbing:
     logger, JSON and setting stores, admin auth and router, `RoomRegistry`,
@@ -249,16 +249,22 @@ edit anything under GameBroker.
   - **Box events:** `wireBarGames` emits `room_created` / `room_closed` /
     `players_changed` from the registry. `Room` calls `onPlayersChanged` (the
     registry's `notePlayers`) on joins, leaves, kicks and the paper switch, never on
-    reconnects. The box's `end` closes with cause `"admin"` and Bingo's host message.
+    reconnects. The box's `end` closes with cause `"host"` (`endCause`) and Bingo's host
+    message; claim refusals use Bingo's words (`claimMessages`).
   - **Status** is the kit's `overviews()`: Rooms-page fields, `joinPath: /join/<code>`
     (never for private rooms), and `Room.overviewExtra()` for the title and
     `pendingClaims`.
   - **Phone pages** get the staff announcement (`<VenueAnnouncement>` in `main.tsx`),
-    hidden whenever the page is a TV or shared screen: `RoomPage` sets it through
-    `sharedScreen.ts` for a Table or the host's big-screen board.
+    which hides itself on a page marked `data-bargames-screen="shared"` (SDK 0.5.0):
+    `tableMode` marks a box TV, and `RoomPage` calls `markSharedScreen()` (box only) for
+    a controlling Table or the host's big-screen board.
   - **"← All games"** (`<BackToGames>`) sits at the bottom of `HomePage` only.
   - **A box TV** (display-only Table on a box) runs `tableMode` (no pointer, 5% safe
-    margins via `--bg-safe-x/y` on `.tv`, standard reconnecting/closed banner).
+    margins via `--bg-safe-x/y` on `.tv`, standard reconnecting/closed banner, wake
+    lock). TableView's own wake lock is skipped there and runs everywhere else.
+  - **SDK 0.5.0 and kit 0.3.2** (Bingo 0.3.1, 2026-11-11): `--accent-ink` follows
+    `--venue-on-primary`. Use `npx bargames mock-box --port/--core-port` when another
+    project's mock box holds 7080/7199.
   - **Join links and QR codes** use the SDK's `joinUrl(venue, path)`; identical
     standalone.
   - **Verify standalone** by building the previous commit in a worktree and diffing a

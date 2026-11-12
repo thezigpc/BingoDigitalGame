@@ -14,7 +14,7 @@
   --text: var(--venue-text, #eef1ff);
   --muted: #a3acd6;
   --accent: var(--venue-primary, #f2b33d);
-  --accent-ink: #2a1c00;
+  --accent-ink: var(--venue-on-primary, #2a1c00); /* text on --accent: the box picks dark or light for the venue color */
   --danger: #ff6b6b;
   --ok: #3ddc97;
   --col-B: #3b82f6;

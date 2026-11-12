@@ -103,7 +103,13 @@ export function registerBarGames(rooms: Rooms): void {
       confirm: (room, id) => asHost((r) => r.resolveClaim(id, true))(room),
       reject: (room, id, reason) => asHost((r) => r.resolveClaim(id, false, reason))(room),
     },
-    // "end" closes the room like the host's own Close room, with the same message.
+    // Bingo's own words when staff act on a claim that isn't waiting.
+    claimMessages: {
+      none: "No BINGO claim is waiting in this room.",
+      gone: "That BINGO claim isn't waiting any more: it was already confirmed or turned down (the host's phone may have got there first), or it wasn't a valid BINGO.",
+    },
+    // "end" closes the room like the host's own Close room, with the same message and cause.
     endReason: HOST_CLOSE_REASON,
+    endCause: "host",
   });
 }

@@ -9,9 +9,13 @@ import { useVenue } from "../useVenue";
 import { RoomDisplayPicker } from "../components/DisplayPicker";
 import type { Act } from "./RoomPage";
 
-/** Keep a TV/tablet display awake while it's showing the board. */
-function useWakeLock() {
+/**
+ * Keep a TV/tablet display awake while it's showing the board. Off when `off` is set: on a
+ * box TV the SDK's tableMode already holds the wake lock.
+ */
+function useWakeLock(off: boolean) {
   useEffect(() => {
+    if (off) return;
     type WL = { release: () => Promise<void> };
     const nav = navigator as Navigator & { wakeLock?: { request: (t: "screen") => Promise<WL> } };
     let lock: WL | null = null;
@@ -27,7 +31,7 @@ function useWakeLock() {
       document.removeEventListener("visibilitychange", onVis);
       lock?.release().catch(() => {});
     };
-  }, []);
+  }, [off]);
 }
 
 interface Props {
@@ -49,7 +53,6 @@ interface Props {
  * gets the game controls, plus keyboard / presentation-clicker shortcuts.
  */
 export function TableView({ view, skew, act, viewer = false, onHostControls }: Props) {
-  useWakeLock();
   const gameName = useGameName();
   const venue = useVenue();
   const venueLogo = isOnBox(venue) ? venue.game.theme.logoUrl : undefined;
@@ -58,6 +61,8 @@ export function TableView({ view, skew, act, viewer = false, onHostControls }: P
   // A box's TV: a kiosk browser with the mouse hidden, already full screen.
   // Nobody can press anything there, so it shows no buttons at all.
   const boxTv = isOnBox(venue) && !control;
+  // The room page runs tableMode (which keeps the screen awake) on a box TV Table.
+  useWakeLock(boxTv && view.you.role === "table");
   const pending = view.claims.find((c) => c.status === "pending");
   const winners = view.claims.filter((c) => c.status === "confirmed");
   const latestWinner = winners[winners.length - 1];
