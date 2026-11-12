@@ -9,10 +9,10 @@ and "first joiner hosts" (SDK 0.7.x), the venue's admin password (SDK 0.8.0), an
 running under a path prefix such as `https://<venue>/bingo/` (SDK 0.10.0), and
 announcements placed for phones or TVs at the top or bottom, plus "← Box admin" (SDK 0.11.0).
 
-- **SDK:** 0.11.0, vendored at `vendor/bargames-sdk-0.11.0.tgz`.
-- **Game kit:** 0.7.0, vendored at `vendor/bargames-gamekit-0.7.0.tgz` (the kit repo's
+- **SDK:** 0.11.5, vendored at `vendor/bargames-sdk-0.11.5.tgz`.
+- **Game kit:** 0.7.2, vendored at `vendor/bargames-gamekit-0.7.2.tgz` (the kit repo's
   `dist-pack` build). See "Game kit" below.
-- **Manifest:** [bargames.json](bargames.json), Bingo `0.6.0`, with
+- **Manifest:** [bargames.json](bargames.json), Bingo `0.8.0`, with
   `"routing": { "basePath": true }`.
 
 ```
@@ -202,12 +202,14 @@ a `WeakMap` inside `Room`, not on `ClaimView`, so the views sent to phones don't
 - **Room for the strip:** Bingo's main screen fills the viewport exactly and the BINGO
   button is pinned to the bottom. A top strip is sticky (it would push the board off the
   screen) and a bottom one is fixed (it would cover the board's last row or the BINGO
-  button). On a box only, `useAnnouncementSpace` (`client/src/announcementSpace.ts`)
-  measures the visible strip and sets `--bg-ann-top` / `--bg-ann-bottom` on `<html>`.
+  button). Since Bingo 0.8.0 the kit's `VenueAnnouncement` (kit 0.7.2, SDK 0.11.3+)
+  sets `--bargames-announcement-top` / `--bargames-announcement-bottom` on `<html>`: the
+  strip's height on its side, `0px` otherwise or where it's hidden on that screen. (0.6.0
+  and 0.7.0 measured it with Bingo's own `useAnnouncementSpace`, now deleted.)
   `index.css` subtracts them from `.tv`, `.tv-viewer`, `.room` and `.center-page`. It
   sticks the room header and floating banner below a top strip, and lifts the BINGO bar,
-  its padding and the toast above a bottom strip. Standalone the variables are never set,
-  so every value is what it was.
+  its padding and the toast above a bottom strip. Standalone the variables are `0px` (or
+  unset), so every value is what it was.
 - **Faster:** on box 0.12.0, `watchVenue` (SDK 0.11.0) waits on the gateway until the venue
   changes, so an announcement goes up or comes down within seconds. Nothing to code.
 - **"← Box admin":** `<BoxAdminLink ctx={venue} />` sits at the top of `/admin`, above the
@@ -228,12 +230,12 @@ a `WeakMap` inside `Room`, not on `ClaimView`, so the views sent to phones don't
 
 - **On the box (0.12.0):** Bingo 0.6.0 is installed. `venue.adminUrl` is the box admin's
   address and answers, so "← Box admin" lands there.
-- **Next release, optional:** SDK 0.11.1+ mock box takes `--announce-show`,
-  `--announce-position` and sends a pretend `venue.adminUrl` (no more rewriting
-  `venue.json` in the test). SDK 0.11.3 and kit 0.7.2 set both
-  `--bargames-announcement-top` and `--bargames-announcement-bottom` on `<html>` (the
-  strip's height on its side, `0px` otherwise or when it's hidden on that screen). Moving
-  to them means deleting `useAnnouncementSpace` and pointing the CSS at those variables.
+- **Bingo 0.8.0 (2026-11-12): SDK 0.11.5 and kit 0.7.2 adopted.** The CSS reads the
+  kit's `--bargames-announcement-top/-bottom`, and `useAnnouncementSpace` is gone. The
+  scratchpad `e2e-sdk011.cjs` re-run on the mock box under `/bingo` passed all six
+  show/position cases on a phone and a TV, the host's big screen and "← Box admin";
+  `bargames check` passed. SDK 0.11.4 (`reportResults`) and 0.11.5 (`ctx.access`
+  `"open"`) need nothing from Bingo.
 
 ## Staff sign-in (SDK 0.7.0)
 

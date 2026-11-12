@@ -314,7 +314,7 @@ label.inline select {
   margin-bottom: 1rem;
 }
 .center-page {
-  min-height: calc(100vh - var(--bg-ann-top, 0px) - var(--bg-ann-bottom, 0px));
+  min-height: calc(100vh - var(--bargames-announcement-top, 0px) - var(--bargames-announcement-bottom, 0px));
   display: grid;
   place-items: center;
   padding: 1rem;
@@ -349,12 +349,12 @@ label.inline select {
 
 .room {
   /* Less a Bar Games announcement strip, so a TV page under one doesn't scroll (unset elsewhere). */
-  min-height: calc(100vh - var(--bg-ann-top, 0px) - var(--bg-ann-bottom, 0px));
+  min-height: calc(100vh - var(--bargames-announcement-top, 0px) - var(--bargames-announcement-bottom, 0px));
 }
 .room-header {
   position: sticky;
   /* Below a Bar Games announcement strip stuck at the top (unset elsewhere). */
-  top: var(--bg-ann-top, 0px);
+  top: var(--bargames-announcement-top, 0px);
   z-index: 5;
   display: flex;
   align-items: center;
@@ -400,7 +400,7 @@ label.inline select {
 .toast {
   position: fixed;
   left: 50%;
-  bottom: calc(6.5rem + var(--bg-ann-bottom, 0px));
+  bottom: calc(6.5rem + var(--bargames-announcement-bottom, 0px));
   transform: translateX(-50%);
   width: max-content;
   max-width: calc(100vw - 2rem);
@@ -868,7 +868,7 @@ button.card-cell {
 
 /* ----------------------------------------------------------------- player */
 .player {
-  padding-bottom: calc(7rem + var(--bg-ann-bottom, 0px));
+  padding-bottom: calc(7rem + var(--bargames-announcement-bottom, 0px));
 }
 .player-top {
   display: flex;
@@ -897,7 +897,7 @@ button.card-cell {
   left: 0;
   right: 0;
   /* Above a Bar Games announcement strip at the bottom (unset elsewhere). */
-  bottom: var(--bg-ann-bottom, 0px);
+  bottom: var(--bargames-announcement-bottom, 0px);
   padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom));
   background: linear-gradient(transparent, var(--bg) 35%);
 }
@@ -1025,7 +1025,7 @@ button.card-cell {
   height: 100vh;
   /* A Bar Games announcement strip (top or bottom, SDK 0.11.0) takes its share of the
      screen; both variables are unset standalone and when no strip shows. */
-  height: calc(100dvh - var(--bg-ann-top, 0px) - var(--bg-ann-bottom, 0px));
+  height: calc(100dvh - var(--bargames-announcement-top, 0px) - var(--bargames-announcement-bottom, 0px));
   container-type: size;
   display: grid;
   grid-template-rows: minmax(0, 40fr) minmax(0, 60fr);
@@ -1038,7 +1038,7 @@ button.card-cell {
 .tv-viewer {
   /* Phone viewers keep the room header above the board. */
   height: calc(100vh - 3.7rem);
-  height: calc(100dvh - 3.7rem - var(--bg-ann-top, 0px) - var(--bg-ann-bottom, 0px));
+  height: calc(100dvh - 3.7rem - var(--bargames-announcement-top, 0px) - var(--bargames-announcement-bottom, 0px));
 }
 .tv-top {
   display: grid;
@@ -1892,7 +1892,7 @@ button.card-cell {
 
 .banner-float {
   position: fixed;
-  top: var(--bg-ann-top, 0px);
+  top: var(--bargames-announcement-top, 0px);
   left: 50%;
   transform: translateX(-50%);
   z-index: 40;

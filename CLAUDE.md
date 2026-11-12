@@ -321,8 +321,9 @@ edit anything under GameBroker.
   - **SDK 0.11.0 and kit 0.7.0** (Bingo 0.6.0, 2026-11-12):
     - **Announcements:** they carry `show` (everywhere, phones or TVs) and `position`
       (top or bottom). The root `<VenueAnnouncement>` covers TV views too.
-    - **Room for the strip:** on a box, `useAnnouncementSpace` sets `--bg-ann-top` and
-      `--bg-ann-bottom`. Any full-height or bottom-pinned CSS must subtract or add them,
+    - **Room for the strip:** the kit's `<VenueAnnouncement>` (kit 0.7.2, Bingo 0.8.0)
+      sets `--bargames-announcement-top` and `--bargames-announcement-bottom` on
+      `<html>`. Any full-height or bottom-pinned CSS must subtract or add them,
       with a `0px` fallback so standalone is unchanged. Browser check: the scratchpad
       `e2e-sdk011.cjs`.
     - **`/admin`** has `<BoxAdminLink>` at the top.
