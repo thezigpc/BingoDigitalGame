@@ -420,7 +420,8 @@ have nothing to change.
   `npx bargames validate .` passes (`✓ bingo@0.4.0 (sdk level 3)`), with only the
   expected warning that the image isn't pinned by digest. 0.1.0, 0.2.1, 0.3.0 and 0.3.1
   are published and left alone.
-- **0.4.0: committed, not pushed.** Pushing to `main` runs the workflow and publishes it.
+- **0.4.0: published** ([run 43138773971](https://github.com/thezigpc/BingoDigitalGame/actions/runs/43138773971),
+  2026-11-12); the anonymous pull of `ghcr.io/v2/thezigpc/bingo/manifests/0.4.0` returns **200**.
 - **0.3.1: published** ([run 43126969457](https://github.com/thezigpc/BingoDigitalGame/actions/runs/43126969457),
   2026-11-11); the anonymous pull returned **200**, and it was installed on the box.
 - **0.3.0: published.** The "Publish image" workflow
