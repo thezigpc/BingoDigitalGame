@@ -230,9 +230,10 @@ a `WeakMap` inside `Room`, not on `ClaimView`, so the views sent to phones don't
   address and answers, so "← Box admin" lands there.
 - **Next release, optional:** SDK 0.11.1+ mock box takes `--announce-show`,
   `--announce-position` and sends a pretend `venue.adminUrl` (no more rewriting
-  `venue.json` in the test). SDK 0.11.2 and kit 0.7.1 also set a bottom strip's height
-  as `--bargames-announcement-bottom` on `<html>`, which could replace part of
-  `useAnnouncementSpace`. It doesn't cover a top strip, which Bingo also needs.
+  `venue.json` in the test). SDK 0.11.3 and kit 0.7.2 set both
+  `--bargames-announcement-top` and `--bargames-announcement-bottom` on `<html>` (the
+  strip's height on its side, `0px` otherwise or when it's hidden on that screen). Moving
+  to them means deleting `useAnnouncementSpace` and pointing the CSS at those variables.
 
 ## Staff sign-in (SDK 0.7.0)
 
