@@ -8,7 +8,8 @@ import {
   type AdminRoomSummary,
   type DisplaySettings,
 } from "@bingo/shared";
-import { staffSignIn } from "@bargames/gamekit/client";
+import { BoxAdminLink, staffSignIn } from "@bargames/gamekit/client";
+import { useVenue } from "../useVenue";
 import { DisplayPicker } from "../components/DisplayPicker";
 import { serverUrl } from "../socket";
 
@@ -55,6 +56,7 @@ export function AdminPage() {
   const [error, setError] = useState("");
   // After a manual Sign out, don't sign venue staff straight back in on this page.
   const [signedOut, setSignedOut] = useState(false);
+  const venue = useVenue();
 
   const refreshStatus = useCallback(() => {
     api<AdminStatus>("/status", token)
@@ -87,6 +89,8 @@ export function AdminPage() {
 
   return (
     <main className="admin">
+      {/* "← Box admin" for staff who came from the venue box (box 0.12.0+); nothing standalone. */}
+      <BoxAdminLink ctx={venue} />
       <header className="admin-head">
         <h1>Admin</h1>
         <Link to="/" className="muted">

@@ -238,7 +238,7 @@ edit anything under GameBroker.
   `ClaimView.reason` and shows on that player's phone. Status lists `pendingClaims`
   (omitted when empty). Test casting with `npx bargames mock-box . --tv-pin 1234` (fake
   TVs) or `--no-cast`.
-- **SDK 0.4.0 and game kit 0.3.1**, now SDK 0.10.0 and kit 0.6.0 (2026-11-11, requested by the user):
+- **SDK 0.4.0 and game kit 0.3.1**, now SDK 0.11.0 and kit 0.7.0 (2026-11-11, requested by the user):
   - **The kit** (`vendor/bargames-gamekit-<ver>.tgz`, from the GitHub releases of
     `thezigpc/gamekit`, source in `C:\CodeProjects\GameKit`) owns Bingo's plumbing:
     logger, JSON and setting stores, admin auth and router, `RoomRegistry`,
@@ -284,16 +284,24 @@ edit anything under GameBroker.
     prefix** (`https://<venue>/bingo/`, from `BG_BASE_PATH` or `BASE_PATH`; the proxy
     strips it). The rules:
     - The server serves the client with `serveSpa`, and Vite builds with `base: "./"`.
-    - `client/index.html` keeps `<base href="/" />`, or deep-link reloads at the root
-      break.
+    - `serveSpa` adds `<base href="/">` at the root (kit 0.6.1). Without it,
+      deep-link reloads break.
     - Every fetch goes through `serverUrl` (`serverBase`). The socket uses
       `path: socketPath()`, and the router `basename={basePath()}`.
     - **Never write a bare `"/api/…"`, `window.location.origin + "/…"`, or
-      `new URL(path, base)`**: add `basePath()`. Don't use the SDK's client
-      `joinUrl()`, which drops the prefix.
+      `new URL(path, base)`**: add `basePath()`, or use the SDK's `joinUrl()`
+      (it keeps the prefix since 0.10.2).
     - Storage keys must start with `bingo_`: every game shares the origin there.
     - Test: start `npx bargames mock-box . --base /bingo` from PowerShell (Git Bash
       mangles `/bingo`), then run the scratchpad `e2e-basepath.cjs`.
+  - **SDK 0.11.0 and kit 0.7.0** (Bingo 0.6.0, 2026-11-12):
+    - **Announcements:** they carry `show` (everywhere, phones or TVs) and `position`
+      (top or bottom). The root `<VenueAnnouncement>` covers TV views too.
+    - **Room for the strip:** on a box, `useAnnouncementSpace` sets `--bg-ann-top` and
+      `--bg-ann-bottom`. Any full-height or bottom-pinned CSS must subtract or add them,
+      with a `0px` fallback so standalone is unchanged. Browser check: the scratchpad
+      `e2e-sdk011.cjs`.
+    - **`/admin`** has `<BoxAdminLink>` at the top.
   - **Mock box cleanup:** stopping a backgrounded `npx bargames mock-box` can leave its
     node process holding the ports. Check `Get-NetTCPConnection -LocalPort <port>` and
     stop only processes whose command line is in this repo.

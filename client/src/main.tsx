@@ -6,6 +6,8 @@ import { AdminPage } from "./pages/AdminPage";
 import { HomePage } from "./pages/HomePage";
 import { RoomPage } from "./pages/RoomPage";
 import { useVenue } from "./useVenue";
+import { useAnnouncementSpace } from "./announcementSpace";
+import { isOnBox } from "@bargames/sdk/client";
 import "./index.css";
 
 /**
@@ -20,6 +22,10 @@ function Venue() {
   const { search } = useLocation();
   // A ?as=table link is about to join as a TV; the room page marks the screen once it has.
   const tableLink = new URLSearchParams(search).get("as") === "table";
+  // SDK 0.11.0: the strip follows the staff's "show" (everywhere / phones / TVs) and
+  // "position" (top / bottom). It's mounted here for every page, TV views included; the
+  // layout makes room for it.
+  useAnnouncementSpace(isOnBox(venue));
   return <VenueAnnouncement ctx={venue} hidden={tableLink} />;
 }
 

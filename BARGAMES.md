@@ -6,22 +6,22 @@ the Rooms-page status fields, `tableMode` and venue join links (SDK 0.3.0), and
 "← All games", staff announcements and `joinPath` (SDK 0.4.0), and the shared-screen
 marker, `--venue-on-primary` and tableMode's wake lock (SDK 0.5.0), and staff sign-in
 and "first joiner hosts" (SDK 0.7.x), the venue's admin password (SDK 0.8.0), and
-running under a path prefix such as `https://<venue>/bingo/` (SDK 0.10.0).
+running under a path prefix such as `https://<venue>/bingo/` (SDK 0.10.0), and
+announcements placed for phones or TVs at the top or bottom, plus "← Box admin" (SDK 0.11.0).
 
-- **SDK:** 0.10.0, vendored at `vendor/bargames-sdk-0.10.0.tgz`.
-- **Game kit:** 0.6.0, vendored at `vendor/bargames-gamekit-0.6.0.tgz` (the kit repo's
-  `dist-pack` build; no v0.6.0 GitHub release existed yet on 2026-11-12). See "Game kit"
-  below.
-- **Manifest:** [bargames.json](bargames.json), Bingo `0.5.0`, with
+- **SDK:** 0.11.0, vendored at `vendor/bargames-sdk-0.11.0.tgz`.
+- **Game kit:** 0.7.0, vendored at `vendor/bargames-gamekit-0.7.0.tgz` (the kit repo's
+  `dist-pack` build). See "Game kit" below.
+- **Manifest:** [bargames.json](bargames.json), Bingo `0.6.0`, with
   `"routing": { "basePath": true }`.
 
 ```
 $ npx bargames validate .
 ! image: not pinned by digest; releases should use image@sha256:…
-✓ bingo@0.5.0 (sdk level 3)
+✓ bingo@0.6.0 (sdk level 3)
 
 $ npx bargames check --game http://127.0.0.1:3005
-bingo@0.5.0 · level 3 · http://127.0.0.1:3005
+bingo@0.6.0 · level 3 · http://127.0.0.1:3005
 ✓ health /health → 200
 ✓ /__bargames/venue.json returns the box's branding ("Bingo (mock)")
 ✓ /__bargames/theme.css served
@@ -47,7 +47,7 @@ all checks passed
 
 The game ran on port 3005 for these checks because 3002 (the manifest port) is taken on
 the dev PC by the live dev site. Inside the container it's 3002, as the manifest says.
-Run on 2026-11-12 with SDK 0.10.0 and kit 0.6.0, with the game under `/bingo`
+Run on 2026-11-12 with SDK 0.11.0 and kit 0.7.0 (first with SDK 0.10.0 and kit 0.6.0), with the game under `/bingo`
 (`BG_BASE_PATH=/bingo`). The mock box ran with `--base /bingo --port 7082 --core-port
 7197`, because other projects' mock boxes held 7080/7199 and 7081/7198. Start it from
 PowerShell: Git Bash rewrites `--base /bingo` into a Windows path
@@ -63,20 +63,18 @@ Unset, it runs at the root exactly as before.
 - **Server:** `serveSpa(app, { dist })` (kit) replaces the static files plus the
   `index.html` catch-all. Under a prefix it injects `<meta name="bargames-base">` and
   `<base href="/bingo/">`; at the root the HTML is unchanged.
-- **Build:** Vite `base: "./"`, so asset URLs are relative. `client/index.html` also
-  carries `<base href="/" />`, so a reload of a deep link at the root (`/room/ABCD`)
-  still finds `/assets/…`. The kit's injector adds nothing at the root, and without
-  that tag the browser would ask for `/room/assets/…`. Under a prefix the injected
-  `<base>` comes first, and the first one wins. The favicon link is relative too.
+- **Build:** Vite `base: "./"`, so asset URLs are relative. `serveSpa` adds
+  `<base href="/">` at the root (kit 0.6.1), so a reload of a deep link (`/room/ABCD`)
+  still finds `/assets/…`. Bingo 0.5.0 carried its own tag for that; 0.6.0 dropped it.
+  The favicon link is relative too.
 - **Client:**
   - `serverUrl` is `serverBase(dev)`, so every fetch (`/api/config`, `/api/admin/*`,
     staff sign-in, venue context) carries the prefix.
   - socket.io: `io(serverOrigin(dev), { ...SOCKET_OPTIONS, path: socketPath() })`.
   - The router has `basename={basePath()}`.
-  - Join links and QR codes (`joinUrl` in `components/bits.tsx`) are built as
-    `<publicUrl or origin + basePath()>/join/<code>`. They don't use the SDK's client
-    `joinUrl()`, which drops the prefix (see SDK requests). The host's table link
-    adds `basePath()` too.
+  - Join links and QR codes (`joinUrl` in `components/bits.tsx`) use the SDK's client
+    `joinUrl()`, which keeps the prefix since 0.10.2 (0.5.0 built them by hand). The
+    host's table link adds `basePath()`.
 - **One origin shared by every game:** every Bingo storage key starts with `bingo_`
   (the kit's session store, plus `bingo_admin_token`). Bingo sets no cookies and has no
   service worker.
@@ -192,6 +190,41 @@ oldest first:
 Confirm/Reject and the host's buttons act on the same claim. False BINGOs are never
 pending (they're rejected on the spot), so they never appear. The claim time is kept in
 a `WeakMap` inside `Room`, not on `ClaimView`, so the views sent to phones don't change.
+
+## Announcements on phones and TVs, and "← Box admin" (SDK 0.11.0, kit 0.7.0)
+
+- **Where an announcement shows:** the staff pick `show` (`everywhere`, `phones` or
+  `tvs`) and `position` (`top` or `bottom`). The kit's `<VenueAnnouncement>` follows both.
+  It hides itself with CSS on whichever kind of screen it doesn't belong on: pages marked
+  by `tableMode()` / `markSharedScreen()` count as TVs. Bingo already mounted it once at
+  the root (`main.tsx`), so it's on every page, TV views included. The `hidden` flag stays
+  only on the `?as=table` join link, before that page is marked as a TV.
+- **Room for the strip:** Bingo's main screen fills the viewport exactly and the BINGO
+  button is pinned to the bottom. A top strip is sticky (it would push the board off the
+  screen) and a bottom one is fixed (it would cover the board's last row or the BINGO
+  button). On a box only, `useAnnouncementSpace` (`client/src/announcementSpace.ts`)
+  measures the visible strip and sets `--bg-ann-top` / `--bg-ann-bottom` on `<html>`.
+  `index.css` subtracts them from `.tv`, `.tv-viewer`, `.room` and `.center-page`. It
+  sticks the room header and floating banner below a top strip, and lifts the BINGO bar,
+  its padding and the toast above a bottom strip. Standalone the variables are never set,
+  so every value is what it was.
+- **Faster:** on box 0.12.0, `watchVenue` (SDK 0.11.0) waits on the gateway until the venue
+  changes, so an announcement goes up or comes down within seconds. Nothing to code.
+- **"← Box admin":** `<BoxAdminLink ctx={venue} />` sits at the top of `/admin`, above the
+  header, on the sign-in form and the dashboard alike. It links to `venue.adminUrl`
+  (box 0.12.0+) and renders nothing standalone or on older boxes.
+- **Verified** (scratchpad `e2e-sdk011.cjs`, mock box under `/bingo` with `--announce`):
+  the mock box sends only the text, so the script rewrites `venue.json` in flight with
+  each `show`/`position` and a `venue.adminUrl`. For all six combinations, on a player's
+  phone (390x844) and a box TV (1920x1080):
+  - the strip shows exactly where `show` says;
+  - the TV board loses exactly the strip's 41 px;
+  - nothing scrolls or overlaps the strip.
+
+  The same holds for the host's own big-screen board (1180x820, TVs only, bottom). In
+  play, the BINGO bar sits right above a bottom strip (bar 718-803, strip 803-844).
+  "← Box admin" goes to `venue.adminUrl`. Last round's path-prefix walk-through still
+  passes under `/bingo` and at the root without the two workarounds.
 
 ## Staff sign-in (SDK 0.7.0)
 
@@ -502,6 +535,7 @@ have nothing to change.
   `npx bargames validate .` passes (`✓ bingo@0.4.0 (sdk level 3)`), with only the
   expected warning that the image isn't pinned by digest. 0.1.0, 0.2.1, 0.3.0 and 0.3.1
   are published and left alone.
+- **0.6.0: committed, not pushed.** Pushing to `main` runs the workflow and publishes it.
 - **0.5.0: published** ([run 43185227235](https://github.com/thezigpc/BingoDigitalGame/actions/runs/43185227235),
   2026-11-12); the anonymous pull of `ghcr.io/v2/thezigpc/bingo/manifests/0.5.0` returns **200**.
 - **0.4.2: published** ([run 43143298645](https://github.com/thezigpc/BingoDigitalGame/actions/runs/43143298645),
@@ -523,8 +557,8 @@ have nothing to change.
   checked to exist). That clears GitHub's Node 20 deprecation warning.
 - **Clean-checkout build:** Docker still isn't installed on the dev PC, so the CI run is
   the real test. Everything the image needs is committed, including
-  `vendor/bargames-sdk-0.10.0.tgz` and `vendor/bargames-gamekit-0.6.0.tgz`. The kit
-  tarball is the kit repo's `dist-pack` build (no v0.6.0 GitHub release yet). Neither
+  `vendor/bargames-sdk-0.11.0.tgz` and `vendor/bargames-gamekit-0.7.0.tgz`. The kit
+  tarball is the kit repo's `dist-pack` build. Neither
   build needs GitHub access.
 - **0.2.1: published** ([run 42934222401](https://github.com/thezigpc/BingoDigitalGame/actions/runs/42934222401),
   2026-11-11); the anonymous pull check returned **200**.
@@ -616,6 +650,15 @@ have nothing to change.
   copies or casts;
 - standalone, nothing is marked as a shared screen, and Bingo's wake lock runs as before;
 - `--accent-ink` reads `var(--venue-on-primary, <old value>)`.
+
+**Kit 0.7.0 and SDK 0.11.0 changes (Bingo 0.6.0):** standalone, `BoxAdminLink` renders
+nothing, `useAnnouncementSpace` doesn't run, and every `--bg-ann-*` fallback is `0px`, so
+each height is what it was (`.room` and `.center-page` stay `100vh`). At the root
+the HTML now gets the kit's `<base href="/">` in place of Bingo's own identical tag.
+
+**Verified for 0.6.0:** 50 tests pass, `bargames check` passes under `/bingo`, and the
+old-against-new browser flow against 0.5.0 (e156113) differed **only in the random card
+numbers**.
 
 **Kit 0.6.0 and SDK 0.10.0 changes (Bingo 0.5.0):**
 - The static files and `index.html` now come from the kit's `serveSpa`:
@@ -725,7 +768,7 @@ the staff sign-in browser check still passes, and the old-against-new browser fl
    `tableMode` (or a lighter `sharedScreen(true)`) told `<VenueAnnouncement>` directly,
    games wouldn't each have to wire it.
 
-7. **Fixed in 0.10.2 (not adopted yet; Bingo's own links still work).** The client
+7. **Fixed in 0.10.2, adopted in Bingo 0.6.0.** The client
    `joinUrl(ctx, path)` dropped a path prefix (0.10.0, `dist/client.js`):
    it still does `new URL(path, ctx.game.publicUrl ?? location.origin)`. With
    `publicUrl` `http://localhost:7082/bingo`, a join link comes out as
@@ -739,7 +782,7 @@ listing every command and the claim `--args`, and `check --room CODE` (0.3.0). T
 one now validates a live Bingo room with a waiting claim: "1 pending claim(s), shape ok".
 `hostUrl` handling was answered (never logged or saved by the box).
 
-## Game kit (0.6.0)
+## Game kit (0.7.0)
 
 Bingo now uses the kit for its plumbing, adopted in the README's order (each step
 committed separately with the tests green):
@@ -754,9 +797,8 @@ committed separately with the tests green):
 Steps 3 and 4 went in together: the old `RoomManager` emitted the box events itself, so
 moving the registry without `wireBarGames` would have dropped them in between.
 
-**Kit request 6 (0.6.0), fixed in kit 0.6.1 and SDK 0.10.2 (not adopted yet):** at the
-root they now add `<base href="/">` unless the page has one, so Bingo's own tag can go
-when Bingo moves to them. The original request: `injectBasePath` leaves the HTML untouched at the
+**Kit request 6 (0.6.0), fixed in kit 0.6.1 and SDK 0.10.2, adopted in Bingo 0.6.0:** at
+the root they now add `<base href="/">` unless the page has one; Bingo's own tag is gone. The original request: `injectBasePath` leaves the HTML untouched at the
 root. A client built with Vite `base: "./"` (as the README says) then breaks on a reload
 of any deep link at the root (`/room/ABCD` asks for `/room/assets/…`), unless the game
 adds its own `<base href="/">` (Bingo does). Injecting `<base href="/">` at the root
