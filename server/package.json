@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@bargames/gamekit": "file:../vendor/bargames-gamekit-0.7.2.tgz",
-    "@bargames/sdk": "file:../vendor/bargames-sdk-0.11.5.tgz",
+    "@bargames/sdk": "file:../vendor/bargames-sdk-0.13.0.tgz",
     "@bingo/shared": "*",
     "express": "^4.19.2",
     "socket.io": "^4.7.5"

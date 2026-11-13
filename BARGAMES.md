@@ -9,10 +9,10 @@ and "first joiner hosts" (SDK 0.7.x), the venue's admin password (SDK 0.8.0), an
 running under a path prefix such as `https://<venue>/bingo/` (SDK 0.10.0), and
 announcements placed for phones or TVs at the top or bottom, plus "← Box admin" (SDK 0.11.0).
 
-- **SDK:** 0.11.5, vendored at `vendor/bargames-sdk-0.11.5.tgz`.
+- **SDK:** 0.13.0, vendored at `vendor/bargames-sdk-0.13.0.tgz` (Bingo 0.8.1, a drop-in update).
 - **Game kit:** 0.7.2, vendored at `vendor/bargames-gamekit-0.7.2.tgz` (the kit repo's
   `dist-pack` build). See "Game kit" below.
-- **Manifest:** [bargames.json](bargames.json), Bingo `0.8.0`, with
+- **Manifest:** [bargames.json](bargames.json), Bingo `0.8.1`, with
   `"routing": { "basePath": true }`.
 
 ```
