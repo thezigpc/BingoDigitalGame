@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { MAX_BALL, SETTINGS_LIMITS, type RoomView } from "@bingo/shared";
 import { PatternPicker } from "../components/PatternPicker";
 import { toggleFullscreen } from "../fullscreen";
@@ -116,6 +116,8 @@ export function TableView({ view, skew, act, viewer = false, onHostControls }: P
     act("closeRoom");
 
   const url = joinUrl(view.code, venue);
+  // The address under the QR code: "play.example.net/bingo", without the scheme or /join/CODE.
+  const joinAddress = url.replace(/^https?:\/\//, "").replace(/\/join\/.*/, "");
   const [showMenu, setShowMenu] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
 
@@ -350,10 +352,11 @@ export function TableView({ view, skew, act, viewer = false, onHostControls }: P
         </div>
 
         {showJoin && (
-          <div className="tv-join">
+          <div className={`tv-join${joinAddress.length <= 30 ? " join-wide" : ""}`}>
             <QrCode text={url} size={200} />
             <div className="tv-join-text">
-              <span className="muted">Join at {url.replace(/^https?:\/\//, "").replace(/\/join\/.*/, "")}</span>
+              <span className="muted">Join at</span>
+              <JoinAddress address={joinAddress} />
               <span className="big-code">{view.code}</span>
             </div>
           </div>
@@ -438,5 +441,26 @@ export function TableView({ view, skew, act, viewer = false, onHostControls }: P
         </div>
       )}
     </main>
+  );
+}
+
+/**
+ * The join address under the QR code. It has no spaces ("play.example.net/bingo"),
+ * so offer line breaks after each dot and slash, and shrink a long one; the CSS
+ * breaks anywhere as a last resort, so the address always stays inside the box.
+ */
+function JoinAddress({ address }: { address: string }) {
+  const parts = address.split(/(?<=[./])/);
+  // Longer than "play.example.net/bingo": smaller text, so it takes fewer lines.
+  const scale = Math.max(0.6, Math.min(1, 24 / address.length));
+  return (
+    <span className="muted join-address" style={scale < 1 ? { fontSize: `${scale}em` } : undefined}>
+      {parts.map((p, i) => (
+        <Fragment key={i}>
+          {i > 0 && <wbr />}
+          {p}
+        </Fragment>
+      ))}
+    </span>
   );
 }

@@ -81,8 +81,14 @@ An npm-workspaces monorepo, the same shape as CAHDigitalGame:
   fits whichever dimension runs out first. In portrait it stacks: ball, pattern and QR
   across the top, then info full width, with the board taking the rest. The title row
   never wraps (a long `GAME_NAME` gets an ellipsis), because a wrapped title pushes the
-  info under the board. For the same reason the join box is capped at `16cqw`, so a long
-  hostname wraps inside it. Re-test layouts on the **real** URL: the real dev hostname and
+  info under the board. For the same reason the join box is capped at `16cqw`, or `19cqw`
+  (`.join-wide`) for an address of 30 characters or fewer, so a venue address like
+  "play.example.net/bingo" fits on one line. Wider squeezes the info column into the board
+  mid-game. `JoinAddress` in TableView puts "Join at" on its own line, offers breaks after
+  each dot and slash, and shrinks a long address. Browser check (user's request,
+  2026-11-13, after the real venue address spilled out of the box): the scratchpad
+  `e2e-joinbox.cjs` on the mock box under `/bingo` rewrites venue.json to try real and
+  extra-long addresses in every layout at 7 sizes, mid-game. Re-test layouts on the **real** URL: the real dev hostname and
   "Bingo Night (dev)" broke layouts that passed on localhost. The phone `viewer` uses the same component without the join box
   or controls.
 - **Board layouts and draw animation** (2026-11-09, modeled on the reference site's

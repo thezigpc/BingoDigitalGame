@@ -12,7 +12,7 @@ announcements placed for phones or TVs at the top or bottom, plus "← Box admin
 - **SDK:** 0.13.0, vendored at `vendor/bargames-sdk-0.13.0.tgz` (Bingo 0.8.1, a drop-in update).
 - **Game kit:** 0.7.2, vendored at `vendor/bargames-gamekit-0.7.2.tgz` (the kit repo's
   `dist-pack` build). See "Game kit" below.
-- **Manifest:** [bargames.json](bargames.json), Bingo `0.8.1`, with
+- **Manifest:** [bargames.json](bargames.json), Bingo `0.8.2`, with
   `"routing": { "basePath": true }`.
 
 ```
@@ -788,6 +788,13 @@ the staff sign-in browser check still passes, and the old-against-new browser fl
    too. The server's `publicUrl()` and base.ts's `joinUrl(base, path)` keep it. Bingo
    builds its links itself for now.
 
+8. **Open (2026-11-13): a realistic venue address on the mock box.** The mock's venue.json
+   always reports `http://localhost:7082/...`, so an address too long for a game's join
+   box never shows up in testing (the real `play.<domain>/bingo` overflowed Bingo's box on
+   a box TV). A `--public-url` / `--venue-host` flag would save rewriting venue.json in
+   flight, as the scratchpad `e2e-joinbox.cjs` does. A `joinDisplay(ctx, path)` returning
+   the short "play.example.net/bingo" form would also save each game its own regexes.
+
 **Done since the last report (verified):** `create_room` (0.2.0), casting in the mock box
 with an unpaired TV (`fake-unpaired`, 0.3.0), claim commands (0.2.1), `bargames help`
 listing every command and the claim `--args`, and `check --room CODE` (0.3.0). That last
@@ -815,6 +822,16 @@ root. A client built with Vite `base: "./"` (as the README says) then breaks on 
 of any deep link at the root (`/room/ABCD` asks for `/room/assets/…`), unless the game
 adds its own `<base href="/">` (Bingo does). Injecting `<base href="/">` at the root
 too, or a README note, would save every game the trap.
+
+**Kit request 7 (2026-11-13, open): a shared join-address display.** Under the QR code
+the address ("play.zigventures.net/bingo") has no spaces, so it can't wrap and spilled
+out of Bingo's join box on a real box TV. Bingo's fix (`JoinAddress` in TableView):
+"Join at" on its own line, a `<wbr>` after each dot and slash, `overflow-wrap: anywhere`
+as the last resort, a smaller font past 24 characters, and a slightly wider box (19cqw,
+not 16) for addresses of 30 characters or fewer. Wider than that squeezed the info column
+into the board mid-game, so the width cap has to stay the game's choice (a variable, not a
+hard-coded selector). Asked the kit for a `<JoinAddress>` (and optionally a `<JoinBox>`)
+that every game can use; Bingo adopts it when it ships.
 
 **Kit requests 1-5:** all five are done in kit 0.3.2 and in use (see "Kit 0.3.2 and SDK
 0.5.0 changes" above). The original requests:

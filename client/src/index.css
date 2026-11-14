@@ -1173,9 +1173,15 @@ button.card-cell {
   height: auto;
 }
 .tv-join {
-  /* A long host name ("Join at devbingo.example.org") wraps in here instead
-     of widening the box and squeezing the info column. */
+  /* A long address wraps in here (after a dot or slash, see JoinAddress)
+     instead of widening the box and squeezing the info column. */
   max-width: 16cqw;
+}
+.tv-join.join-wide {
+  /* An address up to about 30 characters ("play.example.net/bingo") gets a
+     slightly wider box, so it fits on one line where there's room. Wider
+     than this squeezes the info column into the board. */
+  max-width: 19cqw;
 }
 .tv-join-text {
   text-align: center;
@@ -1183,6 +1189,14 @@ button.card-cell {
   flex-direction: column;
   align-items: center;
   font-size: min(2.4cqh, 1.3cqw);
+}
+.tv-join-text,
+.join-address {
+  max-width: 100%;
+}
+.join-address {
+  overflow-wrap: anywhere;
+  line-height: 1.2;
 }
 .tv-join .big-code {
   font-size: min(6.5cqh, 3.4cqw);
@@ -1297,7 +1311,8 @@ button.card-cell {
   .tv-join-text {
     font-size: min(2cqh, 3.2cqw);
   }
-  .tv-join {
+  .tv-join,
+  .tv-join.join-wide {
     max-width: none;
   }
   .tv-join .qr {
