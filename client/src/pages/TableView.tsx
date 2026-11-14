@@ -116,9 +116,12 @@ export function TableView({ view, skew, act, viewer = false, onHostControls }: P
     window.confirm("Close this room? Everyone is sent back to the home page and the room code stops working.") &&
     act("closeRoom");
 
-  // url: the room's join link, for the QR code. joinAddress: the game's address to print
-  // under it, "play.example.net/bingo" (no scheme, no /join/CODE). SDK 0.13.1.
-  const { url, short: joinAddress } = joinDisplay(venue, `/join/${view.code}`);
+  // url: the room's join link, for the QR code. joinAddress: what to print under it. On a
+  // box that serves short room links (SDK 0.13.2, box 0.15.6) that's the room's own link,
+  // "play.example.net/AB12"; otherwise the game's address, "play.example.net/bingo".
+  const join = joinDisplay(venue, `/join/${view.code}`, view.code);
+  const url = join.url;
+  const joinAddress = join.roomShort ?? join.short;
   const [showMenu, setShowMenu] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
 
@@ -356,7 +359,9 @@ export function TableView({ view, skew, act, viewer = false, onHostControls }: P
           <div className={`tv-join${joinAddress.length <= 30 ? " join-wide" : ""}`}>
             <QrCode text={url} size={200} />
             <div className="tv-join-text">
-              {/* Kit 0.7.3: breaks after "." and "/", shrinks long addresses, never overflows. */}
+              {/* The kit's JoinAddress: breaks after "." and "/", shrinks long addresses, never
+                  overflows. Kit defaults on purpose: minScale 0.8 widened the box and pushed
+                  the info column into the board in Easy and Stacked (0.8.4 check). */}
               <JoinAddress url={joinAddress} className="muted" />
               <span className="big-code">{view.code}</span>
             </div>

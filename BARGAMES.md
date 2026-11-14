@@ -9,10 +9,10 @@ and "first joiner hosts" (SDK 0.7.x), the venue's admin password (SDK 0.8.0), an
 running under a path prefix such as `https://<venue>/bingo/` (SDK 0.10.0), and
 announcements placed for phones or TVs at the top or bottom, plus "← Box admin" (SDK 0.11.0).
 
-- **SDK:** 0.13.1, vendored at `vendor/bargames-sdk-0.13.1.tgz` (Bingo 0.8.3).
-- **Game kit:** 0.7.3, vendored at `vendor/bargames-gamekit-0.7.3.tgz` (the kit repo's
+- **SDK:** 0.13.2, vendored at `vendor/bargames-sdk-0.13.2.tgz` (Bingo 0.8.4).
+- **Game kit:** 0.7.4, vendored at `vendor/bargames-gamekit-0.7.4.tgz` (the kit repo's
   `dist-pack` build). See "Game kit" below.
-- **Manifest:** [bargames.json](bargames.json), Bingo `0.8.3`, with
+- **Manifest:** [bargames.json](bargames.json), Bingo `0.8.4`, with
   `"routing": { "basePath": true }`.
 
 ```
@@ -837,6 +837,18 @@ not 16) for addresses of 30 characters or fewer. Wider than that squeezed the in
 into the board mid-game, so the width cap has to stay the game's choice (a variable, not a
 hard-coded selector). Asked the kit for a `<JoinAddress>` (and optionally a `<JoinBox>`)
 that every game can use; Bingo adopts it when it ships.
+
+**Short room links (SDK 0.13.2, kit 0.7.4, Bingo 0.8.4, 2026-11-14).** On a box that
+serves them (`venue.roomLinks`, box 0.15.6+), the TV prints the room's own link,
+`joinDisplay(venue, "/join/<code>", code).roomShort` ("play.zigventures.net/AB12"), under the
+QR code; elsewhere it falls back to `short` (the game's address). Every Bingo room's status
+has a `joinPath` (`rooms/registry.ts`), so the link resolves for every room. The big room
+code stays: players read it out, and it's the only way in off a box. Kit 0.7.4's
+`minScale={0.8} lines={2}` was tried and dropped: a full-size address widened the join box
+and pushed the info column into the board (Easy, Stacked), so Bingo keeps the kit defaults
+and its own width caps. Checked with the scratchpad `joinbox-publicurl.ps1` (the mock's
+room link, 126 combinations) and `joinbox-roomlink.ps1` (venue.json rewritten in the
+browser to real and extra-long venue hosts, 126 combinations): all pass.
 
 **Kit requests 1-5:** all five are done in kit 0.3.2 and in use (see "Kit 0.3.2 and SDK
 0.5.0 changes" above). The original requests:
