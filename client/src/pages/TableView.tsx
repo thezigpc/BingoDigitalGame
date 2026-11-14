@@ -1,9 +1,10 @@
-import { Fragment, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { MAX_BALL, SETTINGS_LIMITS, type RoomView } from "@bingo/shared";
 import { PatternPicker } from "../components/PatternPicker";
 import { toggleFullscreen } from "../fullscreen";
-import { Ball, BallBoard, skippedRows, CardGrid, Countdown, PatternCard, QrCode, joinUrl, pickBall } from "../components/bits";
-import { isOnBox } from "@bargames/sdk/client";
+import { Ball, BallBoard, skippedRows, CardGrid, Countdown, PatternCard, QrCode, pickBall } from "../components/bits";
+import { isOnBox, joinDisplay } from "@bargames/sdk/client";
+import { JoinAddress } from "@bargames/gamekit/client";
 import { useGameName } from "../useGameName";
 import { useVenue } from "../useVenue";
 import { RoomDisplayPicker } from "../components/DisplayPicker";
@@ -115,9 +116,9 @@ export function TableView({ view, skew, act, viewer = false, onHostControls }: P
     window.confirm("Close this room? Everyone is sent back to the home page and the room code stops working.") &&
     act("closeRoom");
 
-  const url = joinUrl(view.code, venue);
-  // The address under the QR code: "play.example.net/bingo", without the scheme or /join/CODE.
-  const joinAddress = url.replace(/^https?:\/\//, "").replace(/\/join\/.*/, "");
+  // url: the room's join link, for the QR code. joinAddress: the game's address to print
+  // under it, "play.example.net/bingo" (no scheme, no /join/CODE). SDK 0.13.1.
+  const { url, short: joinAddress } = joinDisplay(venue, `/join/${view.code}`);
   const [showMenu, setShowMenu] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
 
@@ -355,8 +356,8 @@ export function TableView({ view, skew, act, viewer = false, onHostControls }: P
           <div className={`tv-join${joinAddress.length <= 30 ? " join-wide" : ""}`}>
             <QrCode text={url} size={200} />
             <div className="tv-join-text">
-              <span className="muted">Join at</span>
-              <JoinAddress address={joinAddress} />
+              {/* Kit 0.7.3: breaks after "." and "/", shrinks long addresses, never overflows. */}
+              <JoinAddress url={joinAddress} className="muted" />
               <span className="big-code">{view.code}</span>
             </div>
           </div>
@@ -441,26 +442,5 @@ export function TableView({ view, skew, act, viewer = false, onHostControls }: P
         </div>
       )}
     </main>
-  );
-}
-
-/**
- * The join address under the QR code. It has no spaces ("play.example.net/bingo"),
- * so offer line breaks after each dot and slash, and shrink a long one; the CSS
- * breaks anywhere as a last resort, so the address always stays inside the box.
- */
-function JoinAddress({ address }: { address: string }) {
-  const parts = address.split(/(?<=[./])/);
-  // Longer than "play.example.net/bingo": smaller text, so it takes fewer lines.
-  const scale = Math.max(0.6, Math.min(1, 24 / address.length));
-  return (
-    <span className="muted join-address" style={scale < 1 ? { fontSize: `${scale}em` } : undefined}>
-      {parts.map((p, i) => (
-        <Fragment key={i}>
-          {i > 0 && <wbr />}
-          {p}
-        </Fragment>
-      ))}
-    </span>
   );
 }

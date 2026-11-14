@@ -9,10 +9,10 @@ and "first joiner hosts" (SDK 0.7.x), the venue's admin password (SDK 0.8.0), an
 running under a path prefix such as `https://<venue>/bingo/` (SDK 0.10.0), and
 announcements placed for phones or TVs at the top or bottom, plus "← Box admin" (SDK 0.11.0).
 
-- **SDK:** 0.13.0, vendored at `vendor/bargames-sdk-0.13.0.tgz` (Bingo 0.8.1, a drop-in update).
-- **Game kit:** 0.7.2, vendored at `vendor/bargames-gamekit-0.7.2.tgz` (the kit repo's
+- **SDK:** 0.13.1, vendored at `vendor/bargames-sdk-0.13.1.tgz` (Bingo 0.8.3).
+- **Game kit:** 0.7.3, vendored at `vendor/bargames-gamekit-0.7.3.tgz` (the kit repo's
   `dist-pack` build). See "Game kit" below.
-- **Manifest:** [bargames.json](bargames.json), Bingo `0.8.2`, with
+- **Manifest:** [bargames.json](bargames.json), Bingo `0.8.3`, with
   `"routing": { "basePath": true }`.
 
 ```
@@ -788,7 +788,8 @@ the staff sign-in browser check still passes, and the old-against-new browser fl
    too. The server's `publicUrl()` and base.ts's `joinUrl(base, path)` keep it. Bingo
    builds its links itself for now.
 
-8. **Open (2026-11-13): a realistic venue address on the mock box.** The mock's venue.json
+8. **Done in SDK 0.13.1, adopted in Bingo 0.8.3:** `mock-box --public-url` and
+   `joinDisplay(ctx, path)` → `{ url, short }`. The original request (2026-11-13): a realistic venue address on the mock box. The mock's venue.json
    always reports `http://localhost:7082/...`, so an address too long for a game's join
    box never shows up in testing (the real `play.<domain>/bingo` overflowed Bingo's box on
    a box TV). A `--public-url` / `--venue-host` flag would save rewriting venue.json in
@@ -823,7 +824,11 @@ of any deep link at the root (`/room/ABCD` asks for `/room/assets/…`), unless 
 adds its own `<base href="/">` (Bingo does). Injecting `<base href="/">` at the root
 too, or a README note, would save every game the trap.
 
-**Kit request 7 (2026-11-13, open): a shared join-address display.** Under the QR code
+**Kit request 7: done in kit 0.7.3, adopted in Bingo 0.8.3.** TableView now uses the kit's
+`<JoinAddress>` with `joinDisplay(...).short`, and keeps its own `.tv-join` / `.join-wide`
+width caps. The scratchpad `joinbox-publicurl.ps1` runs `e2e-joinbox.cjs` once per address
+with `mock-box --public-url` (126 combinations, all pass). The original request
+(2026-11-13): a shared join-address display. Under the QR code
 the address ("play.zigventures.net/bingo") has no spaces, so it can't wrap and spilled
 out of Bingo's join box on a real box TV. Bingo's fix (`JoinAddress` in TableView):
 "Join at" on its own line, a `<wbr>` after each dot and slash, `overflow-wrap: anywhere`
