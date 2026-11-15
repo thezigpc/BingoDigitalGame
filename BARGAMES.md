@@ -9,10 +9,10 @@ and "first joiner hosts" (SDK 0.7.x), the venue's admin password (SDK 0.8.0), an
 running under a path prefix such as `https://<venue>/bingo/` (SDK 0.10.0), and
 announcements placed for phones or TVs at the top or bottom, plus "← Box admin" (SDK 0.11.0).
 
-- **SDK:** 0.13.2, vendored at `vendor/bargames-sdk-0.13.2.tgz` (Bingo 0.8.4).
-- **Game kit:** 0.7.4, vendored at `vendor/bargames-gamekit-0.7.4.tgz` (the kit repo's
+- **SDK:** 0.14.0, vendored at `vendor/bargames-sdk-0.14.0.tgz` (Bingo 0.9.0).
+- **Game kit:** 0.8.0, vendored at `vendor/bargames-gamekit-0.8.0.tgz` (the kit repo's
   `dist-pack` build). See "Game kit" below.
-- **Manifest:** [bargames.json](bargames.json), Bingo `0.8.4`, with
+- **Manifest:** [bargames.json](bargames.json), Bingo `0.9.0`, with
   `"routing": { "basePath": true }`.
 
 ```
@@ -837,6 +837,28 @@ not 16) for addresses of 30 characters or fewer. Wider than that squeezed the in
 into the board mid-game, so the width cap has to stay the game's choice (a variable, not a
 hard-coded selector). Asked the kit for a `<JoinAddress>` (and optionally a `<JoinBox>`)
 that every game can use; Bingo adopts it when it ships.
+
+**Hosting from the box and co-hosts (SDK 0.14.0, kit 0.8.0, Bingo 0.9.0, 2026-11-15).**
+Each room has the kit's `HostSeats` (`room.seats`; a venue room's is made with
+`firstJoinerHosts` in `createVenueRoom`), which replaced Bingo's own `hostOpen`.
+- **The host link is a key, not a seat token:** `?host=<seats.hostToken>` resumes the
+  host seat (`Room.seatFor`), and the ack hands back that member's own token, which
+  `RoomPage`'s `onResumed` stores. So a take-over, which changes only the key, leaves the
+  old phone seated. Any attach to the host seat calls `hostAttached` (`Room.noteAttached`
+  in the socket `bind()`), which closes the first-joiner offer (the 0.8.5 fix, now the kit's).
+- **`host_link`** (staff take over): `Room.takeOver(previous)` makes the previous host
+  member a `cohost`, gives the room a fresh "Venue" host seat for the new link, and sends
+  the old phone a `notice` ("Staff took over hosting…").
+- **Co-hosts** (`role: "cohost"`): invited by the box's `cohost_link` or the host's own
+  "Add a co-host" (`cohostInvite`, a QR of `/join/CODE?cohost=<invite>`, single use,
+  10 minutes). `joinRoom { cohost }` redeems it (`BAD_INVITE` otherwise); a phone already
+  in the room is promoted on the same seat. They run the game (`requireCaller`) and change
+  settings (`requireRunner`), but `requireHost` (close, remove people, invites, Table
+  control, TVs) is the host's alone. `remove_cohost` / `removeCohost` makes them a player
+  again (dealt cards; a viewer in a paper room). Header and list show a "Co-host" badge.
+- Tests: `test/specs/11-cohosts.test.mjs`. Browser check: the scratchpad
+  `pw/e2e-cohost.cjs` on the mock box (23 checks), started by the scratchpad
+  `check090.ps1` with `KEEP_UP=1`.
 
 **Short room links (SDK 0.13.2, kit 0.7.4, Bingo 0.8.4, 2026-11-14).** On a box that
 serves them (`venue.roomLinks`, box 0.15.6+), the TV prints the room's own link,

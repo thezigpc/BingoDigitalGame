@@ -12,7 +12,7 @@ import {
 import { getAdminSettings } from "../admin/settings.js";
 import { clientIp, HOST_CLOSE_REASON, tvs } from "../bargames.js";
 import { GameError } from "../rooms/errors.js";
-import type { Member, Room } from "../rooms/Room.js";
+import { cohostPath, type Member, type Room } from "../rooms/Room.js";
 import type { Rooms } from "../rooms/registry.js";
 import { log } from "@bargames/gamekit/server";
 
@@ -90,9 +90,9 @@ export function registerSocketHandlers(io: IO, rooms: Rooms): void {
       if (socket.data.code !== room.code || socket.data.memberId !== member.id) unbind();
       room.attachSocket(member, socket.id);
       // "First joiner hosts": once anyone holds the host seat (the staff's host link, or
-      // the first phone), the next phone is a player. Without this, a phone joining after
-      // staff opened the host link was handed the same host seat.
-      if (member.role === "host") room.hostOpen = false;
+      // the first phone), the next phone is a player (the kit's HostSeats.hostAttached).
+      // Bingo 0.8.5: a phone joining after staff opened the host link got the same seat.
+      room.noteAttached(member);
       socket.data.code = room.code;
       socket.data.memberId = member.id;
       return { code: room.code, token: member.token, memberId: member.id, role: member.role, name: member.name };
@@ -188,12 +188,19 @@ export function registerSocketHandlers(io: IO, rooms: Rooms): void {
         }
         if (req.role !== "player" && req.role !== "table") throw new GameError("BAD_REQUEST");
         // A known token means "same seat again" - never a second seat.
-        const existing = req.token ? room.findByToken(req.token) : undefined;
-        // A box room with nobody hosting yet ("first joiner hosts"): the first phone in
-        // takes the host seat instead of a player seat.
-        const member =
-          existing ??
-          (req.role === "player" && room.hostOpen ? room.claimHostSeat(req.name) : room.addMember(req.role, req.name, req.tableKey));
+        const existing = room.seatFor(req.token);
+        let member: Member;
+        if (req.cohost !== undefined) {
+          // A co-host invite (the host's or the box's "Add a co-host" QR): single use.
+          if (req.role !== "player" || !room.seats.redeem(req.cohost)) throw new GameError("BAD_INVITE");
+          member = room.seatCohost(existing, req.name);
+        } else {
+          // A box room with nobody hosting yet ("first joiner hosts"): the first phone in
+          // takes the host seat instead of a player seat.
+          member =
+            existing ??
+            (req.role === "player" && room.seats.offerOpen ? room.claimHostSeat(req.name) : room.addMember(req.role, req.name, req.tableKey));
+        }
         // Re-opening the host's Table link on a known seat still grants control.
         if (existing?.role === "table" && req.tableKey === room.tableKey) existing.canControl = true;
         const result = bind(room, member);
@@ -222,7 +229,7 @@ export function registerSocketHandlers(io: IO, rooms: Rooms): void {
           noteJoinFail(ip);
           throw new GameError("ROOM_NOT_FOUND");
         }
-        const member = room.findByToken(String(req?.token ?? ""));
+        const member = room.seatFor(req?.token);
         if (!member) {
           noteJoinFail(ip);
           throw new GameError("BAD_TOKEN");
@@ -268,8 +275,9 @@ export function registerSocketHandlers(io: IO, rooms: Rooms): void {
     });
 
     // ------------------------------------------------------- host only
+    // Host or co-host: running the game includes its settings (auto-call speed, draw mode).
     on<Partial<RoomSettings>>("updateSettings", (room, id, patch) => {
-      room.requireHost(id);
+      room.requireRunner(id);
       room.updateSettings(patch ?? {});
     });
     // Callers, not just the host: the pattern can be changed from the board
@@ -313,6 +321,18 @@ export function registerSocketHandlers(io: IO, rooms: Rooms): void {
     on<{ memberId: string; canControl: boolean }>("setTableControl", (room, id, req) => {
       room.requireHost(id);
       room.setTableControl(String(req?.memberId ?? ""), Boolean(req?.canControl));
+    });
+    // Co-hosts (Bingo 0.9.0): the host hands out single-use invites and removes co-hosts.
+    on("cohostInvite", (room, id) => {
+      room.requireHost(id);
+      const inv = room.seats.invite();
+      log.info("room", "co-host invite", { code: room.code, expiresAt: inv.expiresAt });
+      return { path: cohostPath(room, inv.token), expiresAt: inv.expiresAt };
+    });
+    on<string>("removeCohost", (room, id, target) => {
+      room.requireHost(id);
+      if (!room.seats.isCohost(String(target))) throw new GameError("BAD_REQUEST");
+      room.demoteCohost(String(target));
     });
     on<string>("kickPlayer", (room, id, target) => {
       room.requireHost(id);

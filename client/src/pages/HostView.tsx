@@ -1,4 +1,5 @@
 import { basePath } from "@bargames/gamekit/client";
+import { joinUrl as venueJoinUrl } from "@bargames/sdk/client";
 import { useEffect, useState } from "react";
 import {
   CUSTOM_PATTERN_ID,
@@ -46,6 +47,9 @@ export function HostView({ view, skew, act, onShowBoard }: Props) {
   const ballsLeft = view.ballsLeft;
   const paper = view.settings.cardMode === "paper";
   const machine = view.settings.drawMode === "machine";
+  // A co-host (Bingo 0.9.0) runs the game but can't close the room, remove anyone, hand
+  // out co-host invites, give Tables control or cast to the venue's TVs.
+  const isHost = view.you.role === "host";
 
   return (
     <main className={`host${machine && playing ? " host-machine" : ""}`}>
@@ -121,7 +125,7 @@ export function HostView({ view, skew, act, onShowBoard }: Props) {
         </section>
       )}
 
-      <GamePanel view={view} act={act} />
+      <GamePanel view={view} act={act} isHost={isHost} />
 
       {winners.length > 0 && (
         <section className="panel winners">
@@ -159,9 +163,10 @@ export function HostView({ view, skew, act, onShowBoard }: Props) {
       )}
 
       <SettingsPanel view={view} act={act} />
-      <PlayersPanel view={view} act={act} />
-      <TvsPanel code={view.code} />
-      <TablesPanel view={view} act={act} onShowBoard={onShowBoard} />
+      <PlayersPanel view={view} act={act} isHost={isHost} />
+      {isHost && <CohostsPanel view={view} act={act} />}
+      {isHost && <TvsPanel code={view.code} />}
+      <TablesPanel view={view} act={act} onShowBoard={onShowBoard} isHost={isHost} />
       <InvitePanel code={view.code} />
     </main>
   );
@@ -402,7 +407,7 @@ function SettingsPanel({ view, act }: { view: RoomView; act: Act }) {
   );
 }
 
-function PlayersPanel({ view, act }: { view: RoomView; act: Act }) {
+function PlayersPanel({ view, act, isHost }: { view: RoomView; act: Act; isHost: boolean }) {
   if (view.settings.cardMode === "paper") {
     return (
       <section className="panel">
@@ -426,9 +431,89 @@ function PlayersPanel({ view, act }: { view: RoomView; act: Act }) {
             <li key={p.id}>
               <span className={`dot ${p.connected ? "on" : ""}`} title={p.connected ? "Connected" : "Disconnected"} />
               <span className="grow">{p.name}</span>
+              {isHost && (
+                <button
+                  className="btn btn-small btn-ghost"
+                  onClick={() => window.confirm(`Remove ${p.name} from the room?`) && act("kickPlayer", p.id)}
+                >
+                  Remove
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+/**
+ * Co-hosts (Bingo 0.9.0, the kit's HostSeats): a QR of a single-use invite that expires,
+ * and the co-host list. A co-host runs the game but can't close the room or remove anyone.
+ */
+function CohostsPanel({ view, act }: { view: RoomView; act: Act }) {
+  const venue = useVenue();
+  const [invite, setInvite] = useState<{ url: string; expiresAt: string; count: number } | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  const count = view.cohosts.length;
+  const expired = invite ? Date.parse(invite.expiresAt) <= now : false;
+  useEffect(() => {
+    if (!invite) return;
+    const t = setInterval(() => setNow(Date.now()), 15_000);
+    return () => clearInterval(t);
+  }, [invite]);
+  // Someone joined as a co-host: the code works only once, so put it away.
+  useEffect(() => {
+    if (invite && count > invite.count) setInvite(null);
+  }, [count, invite]);
+  const add = async () => {
+    const res = await act<{ path: string; expiresAt: string }>("cohostInvite");
+    if (!res) return;
+    setNow(Date.now());
+    setInvite({ url: venueJoinUrl(venue, res.path), expiresAt: res.expiresAt, count });
+  };
+  const until = invite ? new Date(invite.expiresAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
+  return (
+    <section className="panel">
+      <h2>
+        Co-hosts <span className="muted">({count})</span>
+      </h2>
+      <p className="muted small">
+        A co-host can call numbers, start and pause games and check BINGO claims, but can't close the room or remove
+        anyone.
+      </p>
+      {invite && !expired ? (
+        <div className="invite-row">
+          <QrCode text={invite.url} size={160} />
+          <div>
+            <p>Scan with the co-host's phone.</p>
+            <p className="muted small">Works once, until {until}.</p>
+            <button className="btn btn-ghost btn-small" onClick={() => setInvite(null)}>
+              Hide
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="row">
+          <button className="btn btn-secondary" onClick={add}>
+            {expired ? "That code expired: make a new one" : "Add a co-host"}
+          </button>
+        </div>
+      )}
+      {count > 0 && (
+        <ul className="players">
+          {view.cohosts.map((c) => (
+            <li key={c.id}>
+              <span className={`dot ${c.connected ? "on" : ""}`} title={c.connected ? "Connected" : "Disconnected"} />
+              <span className="grow">
+                {c.name} <span className="badge">Co-host</span>
+              </span>
               <button
                 className="btn btn-small btn-ghost"
-                onClick={() => window.confirm(`Remove ${p.name} from the room?`) && act("kickPlayer", p.id)}
+                onClick={() =>
+                  window.confirm(`Make ${c.name} a player again? They lose the host controls.`) &&
+                  act("removeCohost", c.id)
+                }
               >
                 Remove
               </button>
@@ -461,7 +546,17 @@ function InvitePanel({ code }: { code: string }) {
  * balls, start, pause, confirm wins). One opened by typing the room code is
  * display-only until the host flips its switch.
  */
-function TablesPanel({ view, act, onShowBoard }: { view: RoomView; act: Act; onShowBoard: () => void }) {
+function TablesPanel({
+  view,
+  act,
+  onShowBoard,
+  isHost,
+}: {
+  view: RoomView;
+  act: Act;
+  onShowBoard: () => void;
+  isHost: boolean;
+}) {
   const [copied, setCopied] = useState(false);
   const link = `${window.location.origin}${basePath()}/join/${view.code}?as=table&key=${encodeURIComponent(view.tableKey ?? "")}`;
   const copy = async () => {
@@ -473,6 +568,21 @@ function TablesPanel({ view, act, onShowBoard }: { view: RoomView; act: Act; onS
       window.prompt("Copy this link:", link);
     }
   };
+  if (!isHost) {
+    // A co-host can put the board on their own screen; the Table link and switches are the host's.
+    return (
+      <section className="panel">
+        <h2>Main screen (the board)</h2>
+        <div className="row">
+          <button className="btn btn-primary" onClick={onShowBoard}>
+            📺 Show the board on this screen
+          </button>
+        </div>
+        <h3 className="subhead">Layout and animation</h3>
+        <RoomDisplayPicker view={view} act={act} />
+      </section>
+    );
+  }
   return (
     <section className="panel">
       <h2>Main screen (the board)</h2>
@@ -523,7 +633,7 @@ function TablesPanel({ view, act, onShowBoard }: { view: RoomView; act: Act; onS
 }
 
 /** End game / New game / Close room. */
-function GamePanel({ view, act }: { view: RoomView; act: Act }) {
+function GamePanel({ view, act, isHost }: { view: RoomView; act: Act; isHost: boolean }) {
   const n = view.gameNumber;
   return (
     <section className="panel game-panel">
@@ -551,16 +661,18 @@ function GamePanel({ view, act }: { view: RoomView; act: Act }) {
             </button>
           </>
         )}
-        <button
-          className="btn btn-danger"
-          onClick={() =>
-            window.confirm(
-              "Close this room? Everyone is sent back to the home page and the room code stops working.",
-            ) && act("closeRoom")
-          }
-        >
-          Close room
-        </button>
+        {isHost && (
+          <button
+            className="btn btn-danger"
+            onClick={() =>
+              window.confirm(
+                "Close this room? Everyone is sent back to the home page and the room code stops working.",
+              ) && act("closeRoom")
+            }
+          >
+            Close room
+          </button>
+        )}
       </div>
     </section>
   );

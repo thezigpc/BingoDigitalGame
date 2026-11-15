@@ -3,8 +3,12 @@
 
 import type { Mask } from "./bingo.js";
 
-/** viewer: a phone in a paper-card room - sees the shared board, no name, no cards. */
-export type Role = "host" | "table" | "player" | "viewer";
+/**
+ * viewer: a phone in a paper-card room - sees the shared board, no name, no cards.
+ * cohost (Bingo 0.9.0, the kit's HostSeats): runs the game like the host (calls, start,
+ * pause, next game, claims, settings) but can't close the room or remove anyone.
+ */
+export type Role = "host" | "cohost" | "table" | "player" | "viewer";
 export type Phase = "lobby" | "playing";
 export type DaubMode = "manual" | "auto";
 /** digital: players get cards on their phones. paper: everyone uses their own physical cards. */
@@ -246,8 +250,10 @@ export interface TableSummary {
 
 export interface RoomView {
   code: string;
-  /** canControl: true for the host, and for Table displays the host trusts. */
+  /** canControl: true for the host and co-hosts, and for Table displays the host trusts. */
   you: { id: string; role: Role; name: string; canControl: boolean };
+  /** Co-hosts (Bingo 0.9.0): the host's list, with a Remove button. */
+  cohosts: MemberSummary[];
   phase: Phase;
   gameNumber: number;
   settings: RoomSettings;
@@ -287,6 +293,8 @@ export interface JoinRequest {
   token?: string;
   /** Table only: the host's table key, granting game controls. */
   tableKey?: string;
+  /** A co-host invite (the ?cohost= link): single use, expires. */
+  cohost?: string;
 }
 
 export interface ResumeRequest {
@@ -342,6 +350,10 @@ export interface ClientToServerEvents {
   setTableControl: (req: { memberId: string; canControl: boolean }, ack: Ack) => void;
   kickPlayer: (memberId: string, ack: Ack) => void;
   closeRoom: (ack: Ack) => void;
+  /** A single-use co-host invite: path is /join/CODE?cohost=..., expiresAt ISO. */
+  cohostInvite: (ack: Ack<{ path: string; expiresAt: string }>) => void;
+  /** That co-host is a player again (a viewer in a paper-card room). */
+  removeCohost: (memberId: string, ack: Ack) => void;
   /** Bar Games box only: the venue's TVs, and putting this room on them. */
   listTvs: (ack: Ack<{ tvs: TvTargets }>) => void;
   castToTvs: (req: { ids: string[]; pin?: string }, ack: Ack<{ result: TvCastResult }>) => void;
@@ -370,12 +382,15 @@ export interface ServerToClientEvents {
   state: (view: RoomView) => void;
   /** Room is gone (closed by host, swept idle, or you were removed). */
   closed: (info: { reason: string }) => void;
+  /** A one-off message for this phone, e.g. "Staff took over hosting; you're a co-host now." */
+  notice: (info: { message: string }) => void;
 }
 
 export const ERRORS = {
   ROOM_NOT_FOUND: "That room code doesn't exist.",
   BAD_TOKEN: "Your seat in this room has expired.",
   NOT_HOST: "Only the host can do that.",
+  BAD_INVITE: "That co-host link has expired or was already used. Ask the host for a new one.",
   NOT_PLAYER: "Only players can do that.",
   NOT_IN_ROOM: "You're not in a room.",
   NAME_REQUIRED: "Please enter a name.",

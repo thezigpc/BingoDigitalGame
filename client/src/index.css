@@ -2229,3 +2229,18 @@ button.card-cell {
   flex-shrink: 0;
   object-fit: contain;
 }
+
+/* Co-hosts (Bingo 0.9.0): a small role badge in the header and the host's co-host list. */
+.badge {
+  display: inline-block;
+  margin-left: 0.4em;
+  padding: 0.1em 0.5em;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink, #fff);
+  font-size: 0.75em;
+  font-weight: 700;
+  line-height: 1.4;
+  vertical-align: middle;
+  white-space: nowrap;
+}

@@ -41,8 +41,26 @@ export function RoomPage() {
     socket: socket as unknown as Parameters<typeof useRoomConnection>[1]["socket"],
     call,
     sessions,
+    // The host link's key resumes the host seat, and the server answers with that seat's
+    // own token (and role): keep it, so a later take-over (a new key) leaves this phone
+    // seated as a co-host instead of locked out.
+    onResumed: (ack, session) =>
+      sessions.save({
+        ...session,
+        token: typeof ack.token === "string" ? ack.token : session.token,
+        name: typeof ack.name === "string" ? ack.name : session.name,
+        role: typeof ack.role === "string" ? (ack.role as StoredSession["role"]) : session.role,
+      }),
   });
   const { act, toast, setToast } = useAction();
+  // One-off messages from the server: "Staff took over hosting...", "You're not a co-host...".
+  useEffect(() => {
+    const onNotice = (n: { message: string }) => setToast(n.message);
+    socket.on("notice", onNotice);
+    return () => {
+      socket.off("notice", onNotice);
+    };
+  }, [setToast]);
   const [bigScreen, setBig] = useState(() => getBigScreen(upper));
   const showBoard = (on: boolean) => {
     setBigScreen(upper, on);
@@ -84,7 +102,9 @@ export function RoomPage() {
   // own big-screen board) is marked as one too, so the staff announcement strip hides
   // itself (tableMode marks the box TV). Off a box nothing is marked (rule 1).
   const onBox = isOnBox(venue);
-  const sharedScreen = onBox && !boxTv && (role === "table" || (role === "host" && bigScreen));
+  // Host or co-host: both run the game (a co-host can't close the room or remove anyone).
+  const runner = role === "host" || role === "cohost";
+  const sharedScreen = onBox && !boxTv && (role === "table" || (runner && bigScreen));
   useEffect(() => (sharedScreen ? markSharedScreen() : undefined), [sharedScreen]);
   useEffect(() => {
     tm.current?.setState(closedReason ? "closed" : status === "offline" ? "reconnecting" : "connected", closedReason ?? undefined);
@@ -113,7 +133,7 @@ export function RoomPage() {
   }
 
   // Host showing the board on their own screen (iPad/laptop cast to a TV).
-  const hostBoard = role === "host" && bigScreen;
+  const hostBoard = runner && bigScreen;
   const fullScreenBoard = role === "table" || hostBoard;
   const leave = async () => {
     const msg = role === "host" ? "End this room for everyone?" : "Leave this room?";
@@ -138,9 +158,10 @@ export function RoomPage() {
             <span className="muted">
               {role === "host" ? "Host" : role === "viewer" ? "Paper cards" : view.you.name} · Game {view.gameNumber}
             </span>
+            {role === "cohost" && <span className="badge">Co-host</span>}
           </div>
           <div className="header-actions">
-            {role === "host" && (
+            {runner && (
               <button
                 className="icon-btn"
                 onClick={() => showBoard(true)}
@@ -167,7 +188,7 @@ export function RoomPage() {
           </div>
         </header>
       )}
-      {role === "host" && !bigScreen && (
+      {runner && !bigScreen && (
         <HostView view={view} skew={skew} act={act} onShowBoard={() => showBoard(true)} />
       )}
       {hostBoard && <TableView view={view} skew={skew} act={act} onHostControls={() => showBoard(false)} />}

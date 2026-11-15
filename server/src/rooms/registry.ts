@@ -2,7 +2,7 @@
 // (a box's venue room stays open while a TV shows it), close causes, crash containment
 // and debounced players_changed. Bingo's Room implements the kit's KitRoom.
 
-import { RoomRegistry, type SessionKind } from "@bargames/gamekit/server";
+import { HostSeats, RoomRegistry, type SessionKind } from "@bargames/gamekit/server";
 import type { AdminRoomSummary } from "@bingo/shared";
 import { getAdminSettings } from "../admin/settings.js";
 import { MAX_ROOMS, ROOM_SWEEP_INTERVAL_MS } from "../config.js";
@@ -44,7 +44,8 @@ export function createRooms(transport: RoomTransport): Rooms {
 /**
  * Bar Games create_room: a room the box starts for its TVs, with no host phone. It gets
  * an empty host seat (named "Venue") so venue staff can take the host controls later
- * with the seat's token (the hostUrl).
+ * with the host link's key (the hostUrl; the kit's HostSeats). With firstJoinerHosts the
+ * first phone in takes the seat instead, until anyone attaches to it.
  */
 export function createVenueRoom(
   rooms: Rooms,
@@ -56,8 +57,9 @@ export function createVenueRoom(
   const room = rooms.create(kind, (r) => {
     r.title = title?.trim().slice(0, 60) || undefined;
     r.setDisplay(getAdminSettings().displayDefaults);
-    hostToken = r.addHost("Venue").token;
-    r.hostOpen = firstJoinerHosts;
+    r.addHost("Venue");
+    r.seats = new HostSeats({ firstJoinerHosts });
+    hostToken = r.seats.hostToken;
   });
   return { room, hostToken };
 }

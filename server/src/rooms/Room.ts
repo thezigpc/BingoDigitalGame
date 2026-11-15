@@ -24,6 +24,7 @@ import {
   type RoomView,
 } from "@bingo/shared";
 import {
+  HostSeats,
   cryptoRand,
   log,
   newId,
@@ -62,7 +63,16 @@ export interface Member {
 export interface RoomTransport {
   sendState(socketId: string, view: RoomView): void;
   sendClosed(socketId: string, reason: string): void;
+  /** A one-off message for one phone (a take-over, or a co-host made a player again). */
+  sendNotice(socketId: string, message: string): void;
 }
+
+/** The links the host key and co-host invites go in (the box's host_link / cohost_link too). */
+export const hostPath = (room: { code: string }, token: string) => `/join/${room.code}?host=${encodeURIComponent(token)}`;
+export const cohostPath = (room: { code: string }, token: string) => `/join/${room.code}?cohost=${encodeURIComponent(token)}`;
+
+export const TAKEOVER_NOTICE = "Staff took over hosting. You're a co-host now: you can still run the game.";
+export const COHOST_REMOVED_NOTICE = "You're not a co-host any more.";
 
 const FALSE_CLAIM_COOLDOWN_MS = 3000;
 const MAX_CLAIMS_KEPT = 30;
@@ -97,10 +107,12 @@ export class Room implements KitRoom {
   /** Optional title from the box's create_room (status only). */
   title?: string;
   /**
-   * Bar Games "first joiner hosts" (SDK 0.7.0): the box put this room on a TV with nobody
-   * hosting yet, so the first phone to join takes the host seat. Cleared once taken.
+   * Who may host (the game kit's HostSeats, kit 0.8.0): the host link's key, the box's
+   * "first joiner hosts" offer (closed on ANY attach to the host seat), take-overs and
+   * single-use co-host invites. Member roles mirror it: the seat's member is "host", its
+   * co-hosts are "cohost". A venue room replaces it at creation (createVenueRoom).
    */
-  hostOpen = false;
+  seats = new HostSeats();
 
   /** Set by the room registry: closes just this room if one of its timers throws. */
   onFatalError: (err: unknown) => void = () => {};
@@ -129,10 +141,97 @@ export class Room implements KitRoom {
    */
   claimHostSeat(rawName: string | undefined): Member {
     const host = this.members.get(this.hostId);
-    if (!this.hostOpen || !host) throw new GameError("BAD_REQUEST");
-    this.hostOpen = false;
+    if (!host || this.seats.claimForJoiner() !== "host") throw new GameError("BAD_REQUEST");
     host.name = (rawName ?? "").trim().slice(0, 24) || "Host";
     return host;
+  }
+
+  /**
+   * The seat a token opens: a member's own token, or the host link's key (the host seat;
+   * the phone then keeps that member's own token, so a later take-over, which changes the
+   * key, leaves it seated as a co-host).
+   */
+  seatFor(token: unknown): Member | undefined {
+    if (typeof token !== "string" || !token) return undefined;
+    return this.findByToken(token) ?? (this.seats.isHostToken(token) ? this.members.get(this.hostId) : undefined);
+  }
+
+  /** Anyone attached to a seat. For the host seat this closes the first-joiner offer. */
+  noteAttached(member: Member): void {
+    if (member.role === "host") this.seats.hostAttached(member.id);
+  }
+
+  cohosts(): Member[] {
+    return [...this.members.values()].filter((m) => m.role === "cohost");
+  }
+
+  /**
+   * A co-host invite was redeemed: a new co-host under this name, or a phone already in the
+   * room (a player or viewer) promoted. A host, co-host or Table stays what it is.
+   */
+  seatCohost(existing: Member | undefined, rawName: string | undefined): Member {
+    if (existing && existing.role !== "player" && existing.role !== "viewer") return existing;
+    let m = existing;
+    if (m) {
+      const name = (rawName ?? "").trim().slice(0, 24);
+      if (!m.name && name) {
+        if (this.nameTaken(name, m.id)) throw new GameError("NAME_TAKEN");
+        m.name = name;
+      }
+      if (!m.name) throw new GameError("NAME_REQUIRED");
+      const wasPlayer = m.role === "player";
+      m.role = "cohost";
+      m.cards = [];
+      if (wasPlayer) this.playersChanged();
+    } else {
+      const name = (rawName ?? "").trim().slice(0, 24);
+      if (!name) throw new GameError("NAME_REQUIRED");
+      if (this.nameTaken(name)) throw new GameError("NAME_TAKEN");
+      if (this.cohosts().length >= MAX_PLAYERS_PER_ROOM) throw new GameError("ROOM_FULL");
+      m = this.newMember("cohost", name);
+    }
+    this.seats.addCohost(m.id);
+    return m;
+  }
+
+  /**
+   * Staff took over (the box's host_link; the kit already made a new host key and listed
+   * the previous holder as a co-host). The previous host's phone stays on as a co-host,
+   * and a fresh host seat waits for the new link. Nobody attached yet: nothing to move.
+   */
+  takeOver(previous: string | undefined): void {
+    const old = previous ? this.members.get(previous) : undefined;
+    if (!old || old.role !== "host") return;
+    old.role = "cohost";
+    this.hostId = this.newMember("host", "Venue").id;
+    this.notify(old, TAKEOVER_NOTICE);
+  }
+
+  /** A co-host is a player again (a nameless viewer in a paper-card room). */
+  demoteCohost(memberId: string): void {
+    const m = this.members.get(memberId);
+    this.seats.removeCohost(memberId);
+    if (!m || m.role !== "cohost") return;
+    if (this.settings.cardMode === "paper") {
+      m.role = "viewer";
+      m.name = "";
+    } else {
+      m.role = "player";
+      this.dealCards(m);
+      this.playersChanged();
+    }
+    this.notify(m, COHOST_REMOVED_NOTICE);
+  }
+
+  private nameTaken(name: string, except?: string): boolean {
+    const n = name.toLowerCase();
+    return [...this.members.values()].some(
+      (m) => m.id !== except && (m.role === "player" || m.role === "cohost") && m.name.toLowerCase() === n,
+    );
+  }
+
+  private notify(m: Member, message: string): void {
+    for (const sid of m.socketIds) this.transport.sendNotice(sid, message);
   }
 
   addMember(role: "player" | "table", rawName: string | undefined, tableKey?: string): Member {
@@ -152,7 +251,7 @@ export class Room implements KitRoom {
     if (!name) throw new GameError("NAME_REQUIRED");
     const players = this.players();
     if (players.length >= MAX_PLAYERS_PER_ROOM) throw new GameError("ROOM_FULL");
-    if (players.some((p) => p.name.toLowerCase() === name.toLowerCase())) throw new GameError("NAME_TAKEN");
+    if (this.nameTaken(name)) throw new GameError("NAME_TAKEN");
     const m = this.newMember("player", name);
     this.dealCards(m);
     this.playersChanged();
@@ -237,6 +336,7 @@ export class Room implements KitRoom {
     if (!m) return;
     for (const sid of m.socketIds) this.transport.sendClosed(sid, reason);
     this.members.delete(memberId);
+    this.seats.removeCohost(memberId);
     if (m.role === "player") this.playersChanged();
   }
 
@@ -257,9 +357,9 @@ export class Room implements KitRoom {
     return [...this.members.values()].filter((m) => m.role === "viewer");
   }
 
-  /** Host, or a Table display the host trusts. */
+  /** Host, a co-host, or a Table display the host trusts. */
   requireCaller(memberId: string): void {
-    if (memberId === this.hostId) return;
+    if (this.seats.canRun(memberId)) return;
     const m = this.members.get(memberId);
     if (!m || m.role !== "table" || !m.canControl) throw new GameError("NOT_HOST");
   }
@@ -270,8 +370,14 @@ export class Room implements KitRoom {
     m.canControl = canControl;
   }
 
+  /** Host or co-host (not a Table): the game's settings. */
+  requireRunner(memberId: string): void {
+    if (!this.seats.canRun(memberId)) throw new GameError("NOT_HOST");
+  }
+
+  /** The host only: closing the room, removing people, co-host invites, Table control, TVs. */
   requireHost(memberId: string): void {
-    if (memberId !== this.hostId) throw new GameError("NOT_HOST");
+    if (this.seats.roleOf(memberId) !== "host") throw new GameError("NOT_HOST");
   }
 
   requirePlayer(memberId: string): Member {
@@ -651,7 +757,8 @@ export class Room implements KitRoom {
     const isHost = m.id === this.hostId;
     return {
       code: this.code,
-      you: { id: m.id, role: m.role, name: m.name, canControl: isHost || m.canControl },
+      you: { id: m.id, role: m.role, name: m.name, canControl: isHost || m.role === "cohost" || m.canControl },
+      cohosts: this.cohosts().map((c) => ({ id: c.id, name: c.name, connected: c.socketIds.size > 0 })),
       phase: this.phase,
       gameNumber: this.gameNumber,
       settings: { ...this.settings },

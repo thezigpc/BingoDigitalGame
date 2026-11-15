@@ -306,9 +306,9 @@ edit anything under GameBroker.
     - **First joiner hosts:** `create_room` with `firstJoinerHosts` sets `room.hostOpen`.
       The first phone to `joinRoom` as a player takes the host seat
       (`Room.claimHostSeat`). Any attach to the host seat (the staff's `?host=` link by
-      `resume`, or `joinRoom` with its token) clears `hostOpen` in the socket `bind()`
-      (Bingo 0.8.5): before that, a phone joining after staff opened the host link was
-      handed the same host seat.
+      `resume`, or `joinRoom` with its token) closes that offer (Bingo 0.8.5: before that,
+      a phone joining after staff opened the host link was handed the same host seat).
+      Since 0.9.0 the kit's `HostSeats` owns it (see below).
     - **Casting:** the Venue TVs cast and stop use `slowCall` (30 s).
   - **SDK 0.8.0 and kit 0.5.0** (Bingo 0.4.1, 2026-11-12): `createAdminAuth` takes
     `venuePassword: bg.checkVenuePassword`, so the box's admin password opens `/admin`.
@@ -340,6 +340,16 @@ edit anything under GameBroker.
       with a `0px` fallback so standalone is unchanged. Browser check: the scratchpad
       `e2e-sdk011.cjs`.
     - **`/admin`** has `<BoxAdminLink>` at the top.
+  - **SDK 0.14.0 and kit 0.8.0** (Bingo 0.9.0, 2026-11-15): **hosting from the box and
+    co-hosts**, through the kit's `HostSeats` (`room.seats`). Details in BARGAMES.md.
+    - The `?host=` link carries a **key**, not a seat token: it resumes the host seat and
+      the ack returns the member's own token (`onResumed` in `RoomPage` saves it), so a
+      take-over (`host_link`, a new key) leaves the old host's phone seated as a co-host.
+    - Role `cohost`: runs the game and its settings (`requireCaller`, `requireRunner`), but
+      can't close the room, remove anyone, invite co-hosts, give Tables control or cast
+      (`requireHost`). Invites are single use and expire (`cohostInvite`, the box's
+      `cohost_link`, `joinRoom { cohost }`); `removeCohost` / `remove_cohost` makes them
+      a player again. Server `notice` events show as toasts.
   - **Mock box cleanup:** stopping a backgrounded `npx bargames mock-box` can leave its
     node process holding the ports. Check `Get-NetTCPConnection -LocalPort <port>` and
     stop only processes whose command line is in this repo.

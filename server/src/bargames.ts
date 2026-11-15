@@ -8,7 +8,7 @@ import { createBarGames, type CommandResult } from "@bargames/sdk/server";
 import type { IncomingMessage } from "node:http";
 import { DEFAULT_GAME_NAME } from "@bingo/shared";
 import { createVenueRoom, type Rooms } from "./rooms/registry.js";
-import type { Room } from "./rooms/Room.js";
+import { cohostPath, hostPath, type Room } from "./rooms/Room.js";
 
 export const bg = createBarGames({
   gameId: "bingo",
@@ -86,7 +86,7 @@ export function registerBarGames(rooms: Rooms): void {
     createVenueRoom: ({ kind, title, firstJoinerHosts }) => {
       const { room, hostToken } = createVenueRoom(rooms, kind ?? "venue", title, firstJoinerHosts === true); // GameError("ROOM_FULL") at the cap
       room.broadcast();
-      return { room, hostUrl: `/join/${room.code}?host=${encodeURIComponent(hostToken)}` };
+      return { room, hostUrl: hostPath(room, hostToken) };
     },
     commands: {
       start: asHost((room) => (room.phase !== "lobby" ? "The game has already started." : room.startGame())),
@@ -109,6 +109,22 @@ export function registerBarGames(rooms: Rooms): void {
     claimMessages: {
       none: "No BINGO claim is waiting in this room.",
       gone: "That BINGO claim isn't waiting any more: it was already confirmed or turned down (the host's phone may have got there first), or it wasn't a valid BINGO.",
+    },
+    // SDK 0.14.0 / kit 0.8.0, hosting from the box: host_link (staff take over; the old
+    // host's phone stays on as a co-host), cohost_link (a single-use, expiring invite) and
+    // remove_cohost. Same Room methods as the host's own buttons, then a broadcast.
+    seats: {
+      of: (room) => room.seats,
+      hostPath,
+      cohostPath,
+      onTakeover: (room, previous) => {
+        room.takeOver(previous);
+        room.broadcast();
+      },
+      onCohostRemoved: (room, memberId) => {
+        room.demoteCohost(memberId);
+        room.broadcast();
+      },
     },
     // "end" closes the room like the host's own Close room, with the same message and cause.
     endReason: HOST_CLOSE_REASON,

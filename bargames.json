@@ -1,10 +1,10 @@
 {
   "id": "bingo",
   "name": "Bingo",
-  "version": "0.8.5",
-  "image": "ghcr.io/thezigpc/bingo:0.8.5",
+  "version": "0.9.0",
+  "image": "ghcr.io/thezigpc/bingo:0.9.0",
   "port": 3002,
-  "sdk": { "version": "0.13.2", "level": 3 },
+  "sdk": { "version": "0.14.0", "level": 3 },
   "routing": { "basePath": true },
   "routes": {
     "player": "/",
@@ -14,7 +14,7 @@
   },
   "health": "/health",
   "events": ["room_created", "room_closed", "players_changed", "round_started", "round_ended", "claim_pending", "winner"],
-  "commands": ["create_room", "start", "pause", "resume", "next_round", "end", "confirm_claim", "reject_claim"],
+  "commands": ["create_room", "start", "pause", "resume", "next_round", "end", "confirm_claim", "reject_claim", "host_link", "cohost_link", "remove_cohost"],
   "brandable": ["displayName", "tagline"],
   "sessionKinds": ["venue", "patron", "private"],
   "resources": { "memory": "256m", "cpus": 1 },

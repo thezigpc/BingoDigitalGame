@@ -25,6 +25,7 @@ const io: IO = new Server(httpServer, {
 const rooms = createRooms({
   sendState: (socketId, view) => io.to(socketId).emit("state", view),
   sendClosed: (socketId, reason) => io.to(socketId).emit("closed", { reason }),
+  sendNotice: (socketId, message) => io.to(socketId).emit("notice", { message }),
 });
 
 // Bar Games: /__bargames/* (venue.json, theme.css, command, status). Before

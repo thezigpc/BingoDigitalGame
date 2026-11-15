@@ -59,6 +59,10 @@ export function HomePage() {
       enter(r);
     });
 
+  // /join/ABCD?cohost=<invite>: the host's (or the box's) "Add a co-host" QR. Single use;
+  // the co-host gives a name (even in a paper-card room) so the host can tell them apart.
+  const cohostInvite = search.get("cohost") ?? undefined;
+
   const join = (role: "player" | "table") =>
     run(async () => {
       const roomCode = code.trim().toUpperCase();
@@ -67,7 +71,8 @@ export function HomePage() {
       // "player" covers viewer too: a paper-card room seats a joining player as a viewer.
       const sameRole =
         role === "table" ? existing?.role === "table" : existing?.role === "player" || existing?.role === "viewer";
-      const token = existing?.roomCode === roomCode && sameRole ? existing.token : undefined;
+      const token =
+        existing?.roomCode === roomCode && (sameRole || (cohostInvite && role === "player")) ? existing.token : undefined;
       if (role === "player" && !paper) rememberName(name.trim());
       // The host's "Open Table display" link carries ?key=..., which gives that
       // Table the game controls.
@@ -76,9 +81,10 @@ export function HomePage() {
         await call<JoinResult>("joinRoom", {
           code: roomCode,
           role,
-          name: paper ? undefined : name.trim(),
+          name: paper && !cohostInvite ? undefined : name.trim(),
           token,
           tableKey,
+          cohost: role === "player" ? cohostInvite : undefined,
         }),
       );
     });
@@ -127,7 +133,12 @@ export function HomePage() {
       </header>
 
       <form className="panel join-panel" onSubmit={onJoin}>
-        <h2>Join a game</h2>
+        <h2>{cohostInvite ? "Join as a co-host" : "Join a game"}</h2>
+        {cohostInvite && (
+          <p className="muted small">
+            You'll be able to call numbers, start and pause games and check BINGO claims. This link works once.
+          </p>
+        )}
         <label>
           Room code
           <input
@@ -147,7 +158,7 @@ export function HomePage() {
             className="code-input"
           />
         </label>
-        {paper ? (
+        {paper && !cohostInvite ? (
           <p className="muted small">
             This game uses paper cards. Join to follow the numbers on your phone. No name needed.
           </p>
@@ -162,17 +173,22 @@ export function HomePage() {
             />
           </label>
         )}
-        <button className="btn btn-primary btn-big" disabled={busy || code.length !== 4 || (!paper && !name.trim())}>
-          {paper ? "Watch the numbers" : "Join"}
-        </button>
         <button
-          type="button"
-          className="btn btn-ghost"
-          disabled={busy || code.length !== 4}
-          onClick={() => join("table")}
+          className="btn btn-primary btn-big"
+          disabled={busy || code.length !== 4 || ((!paper || !!cohostInvite) && !name.trim())}
         >
-          Open as the Table display (TV / big screen)
+          {cohostInvite ? "Join as co-host" : paper ? "Watch the numbers" : "Join"}
         </button>
+        {!cohostInvite && (
+          <button
+            type="button"
+            className="btn btn-ghost"
+            disabled={busy || code.length !== 4}
+            onClick={() => join("table")}
+          >
+            Open as the Table display (TV / big screen)
+          </button>
+        )}
       </form>
 
       <section className="panel">
@@ -204,7 +220,7 @@ export function HomePage() {
       {/* Bar Games: back to the venue's games list. Landing page only (never in a room
           or on a TV, so not while a ?as=table / ?host= link is about to open the room).
           Renders nothing off a box. */}
-      {!search.get("as") && !search.get("host") && <BackToGames ctx={venue} />}
+      {!search.get("as") && !search.get("host") && !cohostInvite && <BackToGames ctx={venue} />}
     </main>
   );
 }

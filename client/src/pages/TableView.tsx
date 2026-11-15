@@ -387,7 +387,7 @@ export function TableView({ view, skew, act, viewer = false, onHostControls }: P
             <button className="btn btn-secondary btn-small" onClick={toggleFullscreen}>
               ⛶ Full screen
             </button>
-            {onHostControls && (
+            {onHostControls && view.you.role === "host" && (
               <button className="btn btn-danger btn-small" onClick={closeRoom}>
                 Close room
               </button>
