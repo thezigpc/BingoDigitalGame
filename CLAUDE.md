@@ -305,7 +305,10 @@ edit anything under GameBroker.
       `trusted`, so box staff skip the password.
     - **First joiner hosts:** `create_room` with `firstJoinerHosts` sets `room.hostOpen`.
       The first phone to `joinRoom` as a player takes the host seat
-      (`Room.claimHostSeat`).
+      (`Room.claimHostSeat`). Any attach to the host seat (the staff's `?host=` link by
+      `resume`, or `joinRoom` with its token) clears `hostOpen` in the socket `bind()`
+      (Bingo 0.8.5): before that, a phone joining after staff opened the host link was
+      handed the same host seat.
     - **Casting:** the Venue TVs cast and stop use `slowCall` (30 s).
   - **SDK 0.8.0 and kit 0.5.0** (Bingo 0.4.1, 2026-11-12): `createAdminAuth` takes
     `venuePassword: bg.checkVenuePassword`, so the box's admin password opens `/admin`.

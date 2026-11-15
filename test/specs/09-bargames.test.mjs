@@ -468,6 +468,32 @@ describe("on a box", () => {
     assert.equal((await command("end", plain)).ok, true);
   });
 
+  test("firstJoinerHosts: once staff open the host link, the next phone is a player", async () => {
+    const res = await fetch(`${server.url}/__bargames/command`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${TOKEN}`, "content-type": "application/json" },
+      body: JSON.stringify({ command: "create_room", args: { kind: "venue", firstJoinerHosts: true } }),
+    });
+    const created = await res.json();
+    assert.equal(created.ok, true, created.message);
+    const code = created.data.roomCode;
+    const hostToken = new URL(created.data.hostUrl, "http://x").searchParams.get("host");
+
+    // Staff open the host controls from the box (the ?host= link resumes the seat).
+    const staff = await server.client();
+    assert.equal((await staff.ok("resume", { code, token: hostToken })).role, "host");
+
+    // The next phone in (the QR code) gets a player seat and no host powers.
+    const pat = await server.client();
+    const joined = await pat.ok("joinRoom", { code, role: "player", name: "Pat" });
+    assert.equal(joined.role, "player");
+    assert.notEqual(joined.token, hostToken);
+    await pat.waitFor((s) => s.you.role === "player", "player view");
+    await staff.ok("startGame");
+    assert.equal((await pat.emit("callNext")).ok, false, "a player can't call balls");
+    assert.equal((await command("end", code)).ok, true);
+  });
+
   test("joinPath: venue and patron rooms get Bingo's join route; a private room never does", async () => {
     const make = async (kind) => {
       const res = await fetch(`${server.url}/__bargames/command`, {

@@ -89,6 +89,10 @@ export function registerSocketHandlers(io: IO, rooms: Rooms): void {
     const bind = (room: Room, member: Member): JoinResult => {
       if (socket.data.code !== room.code || socket.data.memberId !== member.id) unbind();
       room.attachSocket(member, socket.id);
+      // "First joiner hosts": once anyone holds the host seat (the staff's host link, or
+      // the first phone), the next phone is a player. Without this, a phone joining after
+      // staff opened the host link was handed the same host seat.
+      if (member.role === "host") room.hostOpen = false;
       socket.data.code = room.code;
       socket.data.memberId = member.id;
       return { code: room.code, token: member.token, memberId: member.id, role: member.role, name: member.name };
