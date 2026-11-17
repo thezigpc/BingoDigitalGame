@@ -9,10 +9,10 @@ and "first joiner hosts" (SDK 0.7.x), the venue's admin password (SDK 0.8.0), an
 running under a path prefix such as `https://<venue>/bingo/` (SDK 0.10.0), and
 announcements placed for phones or TVs at the top or bottom, plus "← Box admin" (SDK 0.11.0).
 
-- **SDK:** 0.14.0, vendored at `vendor/bargames-sdk-0.14.0.tgz` (Bingo 0.9.0).
-- **Game kit:** 0.10.3, vendored at `vendor/bargames-gamekit-0.10.3.tgz` (the kit repo's
+- **SDK:** 0.16.0, vendored at `vendor/bargames-sdk-0.16.0.tgz` (Bingo 0.9.2; 0.15.0 and 0.16.0 need nothing from Bingo).
+- **Game kit:** 0.10.6, vendored at `vendor/bargames-gamekit-0.10.6.tgz` (the kit repo's
   `dist-pack` build). See "Game kit" below.
-- **Manifest:** [bargames.json](bargames.json), Bingo `0.9.1`, with
+- **Manifest:** [bargames.json](bargames.json), Bingo `0.9.2`, with
   `"routing": { "basePath": true }`.
 
 ```
@@ -837,6 +837,12 @@ not 16) for addresses of 30 characters or fewer. Wider than that squeezed the in
 into the board mid-game, so the width cap has to stay the game's choice (a variable, not a
 hard-coded selector). Asked the kit for a `<JoinAddress>` (and optionally a `<JoinBox>`)
 that every game can use; Bingo adopts it when it ships.
+
+**Kit 0.10.6 and SDK 0.16.0 (Bingo 0.9.2, 2026-11-17):** no Bingo code changes. On keyboard
+screens the dropdowns (auto-call seconds, pattern, draw animation) open the kit's big-button
+list, and the admin password's `autoFocus` opens the keyboard on load. Bingo has no global
+`button { white-space: nowrap }`, so the list's long choices aren't clipped. Browser check:
+`pw/e2e-keyboard.cjs` (51 checks).
 
 **On-screen keyboard (kit 0.10.3, Bingo 0.9.1, 2026-11-17).** For touch screens plugged
 into the box (box 0.21.0), which have no keyboard. `<OnScreenKeyboard />` is mounted once in
