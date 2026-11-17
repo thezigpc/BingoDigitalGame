@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import {
   ADMIN_SETTINGS_LIMITS,
@@ -175,6 +175,8 @@ function PasswordForm({ status, onToken }: { status: AdminStatus; onToken: (t: s
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
+          maxLength={200}
+          autoCapitalize="none"
           autoComplete={setup ? "new-password" : "current-password"}
           autoFocus
         />
@@ -186,6 +188,8 @@ function PasswordForm({ status, onToken }: { status: AdminStatus; onToken: (t: s
             type="password"
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
+            maxLength={200}
+            autoCapitalize="none"
             autoComplete="new-password"
           />
         </label>
@@ -233,9 +237,15 @@ function Dashboard({ token, onSignOut, onExpired }: { token: string; onSignOut: 
     const t = setInterval(load, 5000);
     return () => clearInterval(t);
   }, [load]);
+  // Fill in the saved value once, on the first load. (It used to refill whenever the field was
+  // empty, so clearing it with ⌫ on the kit's on-screen keyboard put the old number back.)
+  const idleFilled = useRef(false);
   useEffect(() => {
-    if (data && idle === "") setIdle(String(data.settings.roomIdleMinutes));
-  }, [data, idle]);
+    if (data && !idleFilled.current) {
+      idleFilled.current = true;
+      setIdle(String(data.settings.roomIdleMinutes));
+    }
+  }, [data]);
 
   const run = async (fn: () => Promise<string | void>) => {
     setError("");
@@ -378,9 +388,18 @@ function Dashboard({ token, onSignOut, onExpired }: { token: string; onSignOut: 
         <form className="admin-form" onSubmit={saveIdle}>
           <label>
             Close a room automatically after this many minutes with no activity
-            <input type="number" min={min} max={max} value={idle} onChange={(e) => setIdle(e.target.value)} />
+            {/* Digits in a text field, not type="number": the kit's on-screen keyboard (a box
+                touch screen) can't edit number fields reliably. The server checks the range. */}
+            <input
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={5}
+              value={idle}
+              onChange={(e) => setIdle(e.target.value.replace(/\D/g, ""))}
+            />
           </label>
-          <button className="btn btn-primary" disabled={!data || Number(idle) === data.settings.roomIdleMinutes}>
+          <button className="btn btn-primary" disabled={!data || idle === "" || Number(idle) === data.settings.roomIdleMinutes}>
             Save
           </button>
         </form>
@@ -424,7 +443,14 @@ function Dashboard({ token, onSignOut, onExpired }: { token: string; onSignOut: 
         <form className="admin-form" onSubmit={closeIdle}>
           <label>
             Close every room idle for more than (minutes)
-            <input type="number" min={0} value={bulk} onChange={(e) => setBulk(e.target.value)} />
+            <input
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={6}
+              value={bulk}
+              onChange={(e) => setBulk(e.target.value.replace(/\D/g, ""))}
+            />
           </label>
           <button className="btn btn-danger" disabled={bulk === "" || Number(bulk) < 0}>
             Close idle rooms

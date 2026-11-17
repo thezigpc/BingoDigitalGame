@@ -350,6 +350,11 @@ edit anything under GameBroker.
       (`requireHost`). Invites are single use and expire (`cohostInvite`, the box's
       `cohost_link`, `joinRoom { cohost }`); `removeCohost` / `remove_cohost` makes them
       a player again. Server `notice` events show as toasts.
+  - **Kit 0.10.3** (Bingo 0.9.1, 2026-11-17): the kit's `<OnScreenKeyboard />` in `main.tsx`
+    for box touch screens (hidden on phones, tablets and PCs; test with `?bg_keyboard=1`).
+    Text fields need `maxLength`, numbers `inputMode="numeric"` in a **text** field (not
+    `type="number"`, which the kit's keys can't edit), and a `<form onSubmit>` so Enter works.
+    Bottom-pinned pieces add `var(--bargames-keyboard, 0px)`. Details in BARGAMES.md.
   - **Mock box cleanup:** stopping a backgrounded `npx bargames mock-box` can leave its
     node process holding the ports. Check `Get-NetTCPConnection -LocalPort <port>` and
     stop only processes whose command line is in this repo.

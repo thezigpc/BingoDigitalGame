@@ -97,6 +97,12 @@ export function TvsPanel({ code }: { code: string }) {
               ))}
             </ul>
           )}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!busy && picked.length > 0 && !(targets.pinRequired && !pin)) run("castToTvs");
+            }}
+          >
           {targets.pinRequired && (
             <label>
               TV PIN
@@ -104,6 +110,7 @@ export function TvsPanel({ code }: { code: string }) {
                 type="password"
                 value={pin}
                 onChange={(e) => setPin(e.target.value.slice(0, 32))}
+                maxLength={32}
                 inputMode="numeric"
                 autoComplete="off"
                 placeholder="Ask the staff"
@@ -112,13 +119,14 @@ export function TvsPanel({ code }: { code: string }) {
           )}
           <div className="row">
             <button
+              type="submit"
               className="btn btn-primary"
               disabled={busy || picked.length === 0 || (targets.pinRequired && !pin)}
-              onClick={() => run("castToTvs")}
             >
               Show this room
             </button>
             <button
+              type="button"
               className="btn btn-ghost"
               disabled={busy || picked.length === 0 || (targets.pinRequired && !pin) || !picked.some((id) => shown(id)?.showingThisGame)}
               onClick={() => run("stopTvs")}
@@ -126,6 +134,7 @@ export function TvsPanel({ code }: { code: string }) {
               Stop showing
             </button>
           </div>
+          </form>
           {note && (
             <div className={note.ok ? "muted small" : "error"} role="status">
               {note.lines.map((l, i) => (

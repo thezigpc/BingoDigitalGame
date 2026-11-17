@@ -152,6 +152,7 @@ export function HomePage() {
               )
             }
             placeholder="ABCD"
+            maxLength={4}
             autoCapitalize="characters"
             autoComplete="off"
             inputMode="text"
@@ -169,6 +170,7 @@ export function HomePage() {
               value={name}
               onChange={(e) => setName(e.target.value.slice(0, 24))}
               placeholder="Name"
+              maxLength={24}
               autoComplete="nickname"
             />
           </label>

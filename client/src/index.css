@@ -400,7 +400,8 @@ label.inline select {
 .toast {
   position: fixed;
   left: 50%;
-  bottom: calc(6.5rem + var(--bargames-announcement-bottom, 0px));
+  /* Above an announcement strip and the kit's on-screen keyboard (both 0px otherwise). */
+  bottom: calc(6.5rem + var(--bargames-announcement-bottom, 0px) + var(--bargames-keyboard, 0px));
   transform: translateX(-50%);
   width: max-content;
   max-width: calc(100vw - 2rem);
@@ -897,7 +898,7 @@ button.card-cell {
   left: 0;
   right: 0;
   /* Above a Bar Games announcement strip at the bottom (unset elsewhere). */
-  bottom: var(--bargames-announcement-bottom, 0px);
+  bottom: calc(var(--bargames-announcement-bottom, 0px) + var(--bargames-keyboard, 0px));
   padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom));
   background: linear-gradient(transparent, var(--bg) 35%);
 }

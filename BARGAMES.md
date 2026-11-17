@@ -10,9 +10,9 @@ running under a path prefix such as `https://<venue>/bingo/` (SDK 0.10.0), and
 announcements placed for phones or TVs at the top or bottom, plus "← Box admin" (SDK 0.11.0).
 
 - **SDK:** 0.14.0, vendored at `vendor/bargames-sdk-0.14.0.tgz` (Bingo 0.9.0).
-- **Game kit:** 0.8.0, vendored at `vendor/bargames-gamekit-0.8.0.tgz` (the kit repo's
+- **Game kit:** 0.10.3, vendored at `vendor/bargames-gamekit-0.10.3.tgz` (the kit repo's
   `dist-pack` build). See "Game kit" below.
-- **Manifest:** [bargames.json](bargames.json), Bingo `0.9.0`, with
+- **Manifest:** [bargames.json](bargames.json), Bingo `0.9.1`, with
   `"routing": { "basePath": true }`.
 
 ```
@@ -837,6 +837,18 @@ not 16) for addresses of 30 characters or fewer. Wider than that squeezed the in
 into the board mid-game, so the width cap has to stay the game's choice (a variable, not a
 hard-coded selector). Asked the kit for a `<JoinAddress>` (and optionally a `<JoinBox>`)
 that every game can use; Bingo adopts it when it ships.
+
+**On-screen keyboard (kit 0.10.3, Bingo 0.9.1, 2026-11-17).** For touch screens plugged
+into the box (box 0.21.0), which have no keyboard. `<OnScreenKeyboard />` is mounted once in
+`main.tsx`, so it covers every page (join, host, board, admin); phones, tablets and PCs never
+see it. The fields: room code (`maxLength` 4), name (24), the TV PIN (32, numeric; now a
+`<form>`, so Enter casts), the admin password (`autoCapitalize="none"`: the kit starts with
+Shift on otherwise), and the admin minutes fields, which are now digit-only text fields with
+`inputMode="numeric"` (the kit's keys can't edit `type="number"` fields reliably). The admin
+page also fills the idle minutes only once now (it refilled an emptied field at once).
+The toast and the BINGO bar sit above `--bargames-keyboard` (0px otherwise). Gameplay is
+unchanged. Browser check: the scratchpad `keyboard091.ps1` runs `pw/e2e-keyboard.cjs` on the
+mock box with `?bg_keyboard=1` at 1080p and 4K, plus a phone without it (41 checks).
 
 **Hosting from the box and co-hosts (SDK 0.14.0, kit 0.8.0, Bingo 0.9.0, 2026-11-15).**
 Each room has the kit's `HostSeats` (`room.seats`; a venue room's is made with
